@@ -32,11 +32,20 @@
   </picture>
 </p>
 
+| Memory | Network interfaces |
+|---|---|
+| <img src="docs/images/memory-light.png" alt="Memory page with composition bar and statistics"> | <img src="docs/images/network-dark.png" alt="Network page with per-interface table, dark appearance"> |
+
+| Disks | Logical processors |
+|---|---|
+| <img src="docs/images/disks-light.png" alt="Disks page with read/write chart and capacity"> | <img src="docs/images/cpu-cores-dark.png" alt="Per-core CPU charts, dark appearance"> |
+
 | Top bar navigation | Sidebar navigation |
 |---|---|
 | <img src="docs/images/performance-dark.png" alt="Performance view, dark appearance"> | <img src="docs/images/sidebar-light.png" alt="Sidebar navigation, light appearance"> |
 
-Screenshots are captured automatically from the real app on a macOS 26 runner by the
+Screenshots are captured automatically from the real app with live data on a macOS 26 runner
+(a virtual machine, hence "Apple M2 Pro (Virtual)" and the VirtIO disk) by the
 [Screenshots workflow](.github/workflows/screenshots.yml).
 
 ## Features
