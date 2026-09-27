@@ -74,6 +74,96 @@ struct CollectorSmokeTests {
         #expect(disks.allSatisfy { $0.activeTime.unavailableReason == .noPublicAPI })
     }
 
+    @Test func gpu() async throws {
+        let monitor = GPUMonitor()
+        let state = await monitor.sample(at: clock.now())
+        print("GPU capability:", await monitor.capability(), "state:", String(describing: state.unavailableReason))
+        for device in state.value?.devices ?? [] {
+            print("GPU:", device.name, "registryID", device.id, "unified", device.hasUnifiedMemory, "lowPower", device.isLowPower,
+                  "removable", device.isRemovable, "location", device.location, "utilization", String(describing: device.utilization))
+            switch device.utilization {
+            case .available(let fraction):
+                #expect((0...1).contains(fraction))
+            case .unavailable(let reason):
+                // Missing key: honest "Not Available" (L‑1), never a fabricated zero.
+                #expect(reason == .noPublicAPI || reason.isTransientFailure)
+            case .notSampled:
+                Issue.record("collector must never return notSampled")
+            }
+        }
+        if case .unavailable(let reason) = state {
+            #expect(reason == .unsupportedHardware)
+        }
+    }
+
+    @Test func energy() async throws {
+        let energy = try #require(await EnergyMonitor().sample(at: clock.now()).value)
+        print("Energy: battery", String(describing: energy.battery), "systemPowerIn", String(describing: energy.systemPowerWatts),
+              "adapter", String(describing: energy.adapterRatingWatts))
+        // CPU/GPU package power has no public API (L‑2).
+        #expect(energy.cpuPowerWatts == .unavailable(.noPublicAPI))
+        #expect(energy.gpuPowerWatts == .unavailable(.noPublicAPI))
+        if let battery = energy.battery.value {
+            #expect((0...1).contains(battery.charge))
+            #expect(battery.batteryPowerWatts.value.map { $0.provenance == .derived } ?? true)
+            if battery.powerSource == .battery {
+                // Battery power is never reported as system power.
+                #expect(energy.systemPowerWatts.value == nil)
+            }
+        } else {
+            // Desktops and VMs: no battery is "Not Available", not 0 %.
+            #expect(energy.battery.unavailableReason == .unsupportedHardware)
+        }
+    }
+
+    @Test func processes() async throws {
+        let monitor = ProcessMonitor()
+        _ = await monitor.sample(at: clock.now())
+        // Burn a little CPU so this process has a non-trivial delta.
+        var sink: UInt64 = 0
+        for value in 0..<5_000_000 as Range<UInt64> { sink &+= value &* value }
+        try await Task.sleep(for: .milliseconds(300))
+        let processes = try #require(await monitor.sample(at: clock.now()).value)
+        let denied = processes.count(where: { $0.cpu.unavailableReason == .permissionDenied })
+        print("Processes:", processes.count, "permission denied:", denied, "sink", sink)
+        for process in processes.sorted(by: { ($0.cpu.value ?? -1) > ($1.cpu.value ?? -1) }).prefix(8) {
+            print("Process:", process.pid, process.name, "cpu", String(describing: process.cpu.value),
+                  "memory", String(describing: process.memoryBytes.value), "threads", String(describing: process.threadCount.value),
+                  "read/s", String(describing: process.diskReadBytesPerSecond.value), "uid", String(describing: process.userID))
+        }
+        #expect(processes.count > 10)
+        #expect(Set(processes.map(\.id)).count == processes.count)
+        let current = try #require(processes.first { $0.pid == getpid() })
+        let cpu = try #require(current.cpu.value)
+        #expect(cpu > 0 && cpu < Double(ProcessInfo.processInfo.activeProcessorCount) + 0.5)
+        #expect((current.memoryBytes.value ?? 0) > 0)
+        #expect((current.threadCount.value ?? 0) >= 1)
+        #expect(current.path != nil)
+        #expect(processes.contains { $0.pid == 1 })
+    }
+
+    @Test func processControlRefusesReusedPID() throws {
+        // Our own PID with a wrong start time must be treated as a different, exited process —
+        // the signal must not be sent.
+        let impostor = ProcessIdentity(pid: getpid(), startTimeMicroseconds: 1)
+        #expect(!ProcessControl.isRunning(impostor))
+        #expect(throws: ProcessControlError.processExited) { try ProcessControl.send(.kill, to: impostor).get() }
+    }
+
+    @Test func processControlTerminatesChild() async throws {
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = ["30"]
+        try child.run()
+        let bsd = try #require(ProcessControl.bsdInfo(of: child.processIdentifier))
+        let identity = ProcessIdentity(pid: child.processIdentifier, startTimeMicroseconds: ProcessControl.startTime(of: bsd))
+        #expect(ProcessControl.isRunning(identity))
+        try ProcessControl.send(.terminate, to: identity).get()
+        child.waitUntilExit()
+        #expect(child.terminationReason == .uncaughtSignal)
+        #expect(child.terminationStatus == SIGTERM)
+    }
+
     @Test func engineWithProductionCollectors() async throws {
         let engine = MonitoringEngine(providers: DarwinTelemetry.makeProviders())
         _ = await engine.sampleOnce()
@@ -84,6 +174,22 @@ struct CollectorSmokeTests {
         #expect(snapshot.network.value != nil)
         #expect(snapshot.disks.value != nil)
         #expect(snapshot.gpu == .notSampled)
+        #expect(snapshot.processes.value == nil)
+
+        // With demand, the demand-driven collectors report real states, never "not implemented".
+        await engine.updatePolicy(SamplingPolicy(demand: [.gpu, .energy, .processes]))
+        let demanded = await engine.sampleOnce()
+        #expect(demanded.gpu.unavailableReason != .notImplemented && demanded.gpu != .notSampled)
+        #expect(demanded.energy.value != nil)
+        #expect(demanded.processes.value != nil)
+    }
+}
+#endif
+
+#if os(macOS)
+extension UnavailableReason {
+    fileprivate var isTransientFailure: Bool {
+        if case .transientFailure = self { true } else { false }
     }
 }
 #endif

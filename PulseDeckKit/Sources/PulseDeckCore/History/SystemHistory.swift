@@ -55,6 +55,12 @@ public struct SystemHistory: Sendable {
     public private(set) var network: [String: MetricHistory] = [:]
     /// Per disk (BSD name). Series: 0 = read B/s, 1 = written B/s.
     public private(set) var disks: [String: MetricHistory] = [:]
+    /// Per GPU (Metal registry ID). Series: 0 = device utilization fraction.
+    public private(set) var gpus: [UInt64: MetricHistory] = [:]
+    /// Series: 0 = system power in (W), 1 = battery charging power (W), 2 = battery discharging
+    /// power (W, positive). Charging and discharging are separate series so each is a gap while
+    /// the other applies, and neither is ever drawn below zero.
+    public private(set) var energy = MetricHistory(seriesCount: 3)
 
     public init() {}
 
@@ -96,7 +102,31 @@ public struct SystemHistory: Sendable {
                             values: [disk.readBytesPerSecond.value, disk.writeBytesPerSecond.value])
             }
         }
+        // GPU and energy are demand-driven: `.notSampled` ticks leave no point (the chart shows
+        // only real samples), and pruning drops a GPU's history once it is a window old.
+        if let gpu = snapshot.gpu.value {
+            for device in gpu.devices {
+                Self.append(to: &gpus, key: device.id, time: time, values: [device.utilization.value])
+            }
+        }
+        switch snapshot.energy {
+        case .available(let energy):
+            self.energy.append(time, values: Self.energyValues(energy))
+        case .unavailable:
+            self.energy.append(time, values: [nil, nil, nil])
+        case .notSampled:
+            break
+        }
         prune(before: time.monotonic.advanced(by: .zero - Self.window))
+    }
+
+    static func energyValues(_ energy: EnergySnapshot) -> [Double?] {
+        let batteryWatts = energy.battery.value?.batteryPowerWatts.value?.value
+        return [
+            energy.systemPowerWatts.value?.value,
+            batteryWatts.flatMap { $0 >= 0 ? $0 : nil },
+            batteryWatts.flatMap { $0 < 0 ? -$0 : nil },
+        ]
     }
 
     /// Drops histories of devices that disappeared more than one window ago, keeping memory
@@ -110,9 +140,12 @@ public struct SystemHistory: Sendable {
         if disks.values.contains(where: isStale) {
             disks = disks.filter { !isStale($0.value) }
         }
+        if gpus.values.contains(where: isStale) {
+            gpus = gpus.filter { !isStale($0.value) }
+        }
     }
 
-    private static func append(to histories: inout [String: MetricHistory], key: String, time: SampleTimestamp, values: [Double?]) {
+    private static func append<Key: Hashable>(to histories: inout [Key: MetricHistory], key: Key, time: SampleTimestamp, values: [Double?]) {
         histories[key, default: MetricHistory(seriesCount: values.count)].append(time, values: values)
     }
 }

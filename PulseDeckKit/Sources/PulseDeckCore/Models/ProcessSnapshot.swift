@@ -17,6 +17,8 @@ public struct ProcessSnapshot: Hashable, Sendable, Identifiable {
     public var name: String
     /// Executable path when permitted.
     public var path: String?
+    /// Owning user ID (`pbi_uid`), when readable.
+    public var userID: UInt32?
     /// CPU usage as a fraction of one logical processor (can exceed 1 for multithreaded work).
     public var cpu: MetricState<Double>
     /// Physical memory footprint in bytes.
@@ -28,10 +30,11 @@ public struct ProcessSnapshot: Hashable, Sendable, Identifiable {
     public var id: ProcessIdentity { identity }
     public var pid: Int32 { identity.pid }
 
-    public init(identity: ProcessIdentity, name: String, path: String?, cpu: MetricState<Double>, memoryBytes: MetricState<UInt64>, threadCount: MetricState<Int>, diskReadBytesPerSecond: MetricState<Double>, diskWriteBytesPerSecond: MetricState<Double>) {
+    public init(identity: ProcessIdentity, name: String, path: String?, userID: UInt32? = nil, cpu: MetricState<Double>, memoryBytes: MetricState<UInt64>, threadCount: MetricState<Int>, diskReadBytesPerSecond: MetricState<Double>, diskWriteBytesPerSecond: MetricState<Double>) {
         self.identity = identity
         self.name = name
         self.path = path
+        self.userID = userID
         self.cpu = cpu
         self.memoryBytes = memoryBytes
         self.threadCount = threadCount
