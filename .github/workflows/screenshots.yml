@@ -1,0 +1,86 @@
+name: Screenshots
+
+# Launches the real app on a macOS runner and captures README screenshots, the rendered
+# app icon and the mounted DMG window. Run manually; set `commit` to push the images
+# to docs/images on the selected branch.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit the images to docs/images on this branch
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      APP: build/DerivedData/Build/Products/Release/PulseDeck.app
+      OUT: docs/images
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PulseDeck.xcodeproj \
+            -scheme PulseDeck \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            | tail -n 5
+
+      - name: Capture main window
+        run: |
+          mkdir -p "$OUT"
+          capture() {
+            local name="$1"; shift
+            "$APP/Contents/MacOS/PulseDeck" "$@" &
+            local pid=$!
+            sleep 8
+            swift scripts/capture-window.swift PulseDeck "$OUT/$name.png" 600 2000
+            kill "$pid"; wait "$pid" 2>/dev/null || true
+            sleep 2
+          }
+          # Preferences are passed in the argument domain, so the runner's defaults stay untouched.
+          capture performance-light -navigationPresentation topBar
+          capture performance-dark -navigationPresentation topBar -AppleInterfaceStyle Dark
+          capture sidebar-light -navigationPresentation sidebar
+          capture sidebar-dark -navigationPresentation sidebar -AppleInterfaceStyle Dark
+
+      - name: Export rendered app icon
+        run: |
+          icns=$(find "$APP/Contents/Resources" -name '*.icns' | head -n 1)
+          echo "icns: $icns"
+          sips -s format png -Z 512 "$icns" --out "$OUT/app-icon.png"
+
+      - name: Capture DMG window
+        run: |
+          scripts/build-dmg.sh "$APP" preview build/PulseDeck-preview.dmg
+          hdiutil attach build/PulseDeck-preview.dmg -mountpoint "/Volumes/PulseDeck preview"
+          open "/Volumes/PulseDeck preview"
+          sleep 6
+          swift scripts/capture-window.swift Finder "$OUT/dmg-window.png" 600 800
+          hdiutil detach "/Volumes/PulseDeck preview" || true
+
+      - name: Upload images
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/images
+
+      - name: Commit images
+        if: inputs.commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images
+          git diff --cached --quiet && exit 0
+          git commit -m "Update screenshots"
+          git push

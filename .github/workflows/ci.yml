@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build app and run tests (macOS 26)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Core package tests (swift test)
+        working-directory: PulseDeckKit
+        run: swift test -Xswiftc -warnings-as-errors
+
+      - name: Build Xcode project
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PulseDeck.xcodeproj \
+            -scheme PulseDeck \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
+            | tee xcodebuild-build.log
+
+      - name: Verify app icon was compiled
+        run: |
+          resources=DerivedData/Build/Products/Debug/PulseDeck.app/Contents/Resources
+          ls -la "$resources"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$resources/../Info.plist"
+          test -n "$(find "$resources" -name '*.icns')"
+
+      - name: Test via Xcode scheme
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project PulseDeck.xcodeproj \
+            -scheme PulseDeck \
+            -destination 'platform=macOS' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild-test.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs
+          path: xcodebuild-*.log
