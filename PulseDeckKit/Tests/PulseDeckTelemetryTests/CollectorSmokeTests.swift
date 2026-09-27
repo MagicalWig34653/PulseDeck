@@ -139,7 +139,26 @@ struct CollectorSmokeTests {
         #expect((current.memoryBytes.value ?? 0) > 0)
         #expect((current.threadCount.value ?? 0) >= 1)
         #expect(current.path != nil)
-        #expect(processes.contains { $0.pid == 1 })
+        // Other users' processes (root) are listed with name and PID; details are Not Available.
+        let launchd = try #require(processes.first { $0.pid == 1 })
+        print("launchd:", launchd.name, "uid", String(describing: launchd.userID), "cpu", String(describing: launchd.cpu))
+        #expect(launchd.userID == 0)
+        #expect(launchd.name == "launchd")
+    }
+
+    @Test func identityIsTheSameFromBothSources() throws {
+        // Own process: proc_bsdinfo and kinfo_proc must yield the same start time, or a process
+        // would change identity when the source changes.
+        let pid = getpid()
+        var bsd = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        #expect(proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, size) == size)
+        var kinfo = kinfo_proc()
+        var kinfoSize = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        #expect(sysctl(&mib, UInt32(mib.count), &kinfo, &kinfoSize, nil, 0) == 0)
+        #expect(BasicProcessInfo(bsd).startTimeMicroseconds == BasicProcessInfo(kinfo).startTimeMicroseconds)
+        #expect(BasicProcessInfo(bsd).userID == BasicProcessInfo(kinfo).userID)
     }
 
     @Test func processControlRefusesReusedPID() throws {
@@ -155,8 +174,8 @@ struct CollectorSmokeTests {
         child.executableURL = URL(fileURLWithPath: "/bin/sleep")
         child.arguments = ["30"]
         try child.run()
-        let bsd = try #require(ProcessControl.bsdInfo(of: child.processIdentifier))
-        let identity = ProcessIdentity(pid: child.processIdentifier, startTimeMicroseconds: ProcessControl.startTime(of: bsd))
+        let info = try #require(ProcessControl.basicInfo(of: child.processIdentifier))
+        let identity = ProcessIdentity(pid: child.processIdentifier, startTimeMicroseconds: info.startTimeMicroseconds)
         #expect(ProcessControl.isRunning(identity))
         try ProcessControl.send(.terminate, to: identity).get()
         child.waitUntilExit()

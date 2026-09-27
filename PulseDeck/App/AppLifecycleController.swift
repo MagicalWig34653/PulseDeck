@@ -10,8 +10,7 @@ final class AppLifecycleController: NSObject, NSApplicationDelegate {
     let appState: AppState
 
     override init() {
-        // CPU, memory, network and disk collectors. Domains without a collector yet (GPU,
-        // energy, processes) are reported as "Not Available", never as fabricated values.
+        // All collectors; GPU, energy and processes are sampled only on demand.
         let engine = MonitoringEngine(providers: DarwinTelemetry.makeProviders())
         appState = AppState(engine: engine)
         super.init()

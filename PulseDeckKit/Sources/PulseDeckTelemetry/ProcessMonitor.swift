@@ -87,23 +87,24 @@ public actor ProcessMonitor: TelemetryProvider {
     }
 
     private func read(pid: pid_t, timebase: MachTimebase) -> ProcessReading? {
-        let bsd: proc_bsdinfo
+        let basic: BasicProcessInfo
         let threads: Result<Int, UnavailableReasonError>
         var all = proc_taskallinfo()
         let allSize = Int32(MemoryLayout<proc_taskallinfo>.size)
         if proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &all, allSize) == allSize {
-            bsd = all.pbsd
+            basic = BasicProcessInfo(all.pbsd)
             threads = .success(Int(all.ptinfo.pti_threadnum))
         } else {
             let error = errno
             if error == ESRCH { return nil }
-            // Task info is refused for other users' processes; BSD info usually is not.
-            guard let basic = ProcessControl.bsdInfo(of: pid) else { return nil }
-            bsd = basic
+            // Task info is refused for other users' processes. `sysctl(KERN_PROC_PID)` still
+            // provides identity, short name and owner for every process (as `ps` uses it).
+            guard let fallback = ProcessControl.basicInfo(of: pid) else { return nil }
+            basic = fallback
             threads = .failure(UnavailableReasonError(Self.reason(for: error)))
         }
 
-        let identity = ProcessIdentity(pid: pid, startTimeMicroseconds: ProcessControl.startTime(of: bsd))
+        let identity = ProcessIdentity(pid: pid, startTimeMicroseconds: basic.startTimeMicroseconds)
 
         let usage: Result<ProcessReading.Usage, UnavailableReasonError>
         var info = rusage_info_v4()
@@ -131,27 +132,27 @@ public actor ProcessMonitor: TelemetryProvider {
             usage = .failure(UnavailableReasonError(Self.reason(for: error)))
         }
 
-        let nameInfo = names[identity] ?? lookUpName(pid: pid, bsd: bsd)
+        let nameInfo = names[identity] ?? lookUpName(pid: pid, basic: basic)
         names[identity] = nameInfo
         return ProcessReading(
             identity: identity,
             name: nameInfo.name,
             path: nameInfo.path,
-            userID: bsd.pbi_uid,
+            userID: basic.userID,
             usage: usage,
             threadCount: threads
         )
     }
 
     /// Display name: the executable's file name from its path (not truncated), else the kernel's
-    /// 32-character `pbi_name`, else the 16-character `pbi_comm`.
-    private func lookUpName(pid: pid_t, bsd: proc_bsdinfo) -> NameInfo {
+    /// short names (`pbi_name` up to 32 characters, `pbi_comm`/`p_comm` up to 16).
+    private func lookUpName(pid: pid_t, basic: BasicProcessInfo) -> NameInfo {
         let length = pathBuffer.withUnsafeMutableBytes { bytes in
             proc_pidpath(pid, bytes.baseAddress, UInt32(bytes.count))
         }
         let path = length > 0 ? String(decoding: pathBuffer.prefix(Int(length)), as: UTF8.self) : nil
         let fileName = path.flatMap { $0.split(separator: "/").last.map(String.init) }
-        let name = [fileName, Self.cString(bsd.pbi_name), Self.cString(bsd.pbi_comm)]
+        let name = ([fileName] + basic.names)
             .compactMap { $0 }
             .first { !$0.isEmpty }
         return NameInfo(name: name ?? "PID \(pid)", path: path)
@@ -159,6 +160,32 @@ public actor ProcessMonitor: TelemetryProvider {
 
     private static func reason(for error: Int32) -> UnavailableReason {
         error == EPERM || error == EACCES ? .permissionDenied : .transientFailure("libproc errno \(error)")
+    }
+
+}
+
+/// Identity, owner and kernel short names of a process, from `proc_bsdinfo` or `kinfo_proc`.
+struct BasicProcessInfo {
+    var startTimeMicroseconds: UInt64
+    var userID: UInt32
+    /// Kernel names, best first.
+    var names: [String]
+
+    private static let microsecondsPerSecond: UInt64 = 1_000_000
+
+    init(_ bsd: proc_bsdinfo) {
+        startTimeMicroseconds = bsd.pbi_start_tvsec &* Self.microsecondsPerSecond &+ bsd.pbi_start_tvusec
+        userID = bsd.pbi_uid
+        names = [Self.cString(bsd.pbi_name), Self.cString(bsd.pbi_comm)]
+    }
+
+    init(_ kinfo: kinfo_proc) {
+        // `p_starttime` is a macro for `p_un.__p_starttime` in `sys/proc.h`. It is the same kernel
+        // field `pbi_start_tv*` reports, so identities agree whichever source was used.
+        let start = kinfo.kp_proc.p_un.__p_starttime
+        startTimeMicroseconds = UInt64(clamping: start.tv_sec) &* Self.microsecondsPerSecond &+ UInt64(clamping: start.tv_usec)
+        userID = kinfo.kp_eproc.e_ucred.cr_uid
+        names = [Self.cString(kinfo.kp_proc.p_comm)]
     }
 
     private static func cString<T>(_ tuple: T) -> String {
@@ -188,8 +215,8 @@ public enum ProcessControlError: Error, Hashable, Sendable {
 public enum ProcessControl {
     /// Whether `identity` still names a running process.
     public static func isRunning(_ identity: ProcessIdentity) -> Bool {
-        guard let bsd = bsdInfo(of: identity.pid) else { return false }
-        return startTime(of: bsd) == identity.startTimeMicroseconds
+        guard let info = basicInfo(of: identity.pid) else { return false }
+        return info.startTimeMicroseconds == identity.startTimeMicroseconds
     }
 
     public static func send(_ signal: ProcessSignal, to identity: ProcessIdentity) -> Result<Void, ProcessControlError> {
@@ -209,16 +236,23 @@ public enum ProcessControl {
         return .success(())
     }
 
-    static func bsdInfo(of pid: pid_t) -> proc_bsdinfo? {
-        var info = proc_bsdinfo()
-        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-        return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size ? info : nil
-    }
-
-    /// Process start time in microseconds since the Unix epoch.
-    static func startTime(of bsd: proc_bsdinfo) -> UInt64 {
-        let microsecondsPerSecond: UInt64 = 1_000_000
-        return bsd.pbi_start_tvsec &* microsecondsPerSecond &+ bsd.pbi_start_tvusec
+    /// `PROC_PIDTBSDINFO` where permitted (own processes), otherwise `sysctl(KERN_PROC_PID)`,
+    /// which the kernel answers for every process. `nil` if the process does not exist.
+    static func basicInfo(of pid: pid_t) -> BasicProcessInfo? {
+        var bsd = proc_bsdinfo()
+        let bsdSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+        if proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, bsdSize) == bsdSize {
+            return BasicProcessInfo(bsd)
+        }
+        var kinfo = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        let result = mib.withUnsafeMutableBufferPointer { name in
+            sysctl(name.baseAddress, UInt32(name.count), &kinfo, &size, nil, 0)
+        }
+        // A PID that does not exist succeeds with size 0.
+        guard result == 0, size == MemoryLayout<kinfo_proc>.stride else { return nil }
+        return BasicProcessInfo(kinfo)
     }
 }
 #endif

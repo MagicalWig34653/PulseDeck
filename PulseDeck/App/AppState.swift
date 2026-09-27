@@ -32,6 +32,11 @@ final class AppState {
         return historyStorage
     }
 
+    /// Last sampled process table. Kept across ticks where processes were not sampled (e.g. the
+    /// tick that raced the section switch) and dropped when the Processes section is left, so a
+    /// stale table is never shown and nothing large is retained in the background.
+    private(set) var latestProcesses: MetricState<[ProcessSnapshot]>? = nil
+
     /// Text shown next to the menu bar icon, `nil` for icon only. Assigned only when it
     /// actually changes so the status item is not re-rendered every tick (SPEC §24).
     private(set) var menuBarLabelText: String? = nil
@@ -50,7 +55,13 @@ final class AppState {
 
     /// The section currently shown in the main window.
     var visibleSection: AppSection? = nil {
-        didSet { if visibleSection != oldValue { pushPolicy() } }
+        didSet {
+            guard visibleSection != oldValue else { return }
+            if visibleSection != .processes {
+                latestProcesses = nil
+            }
+            pushPolicy()
+        }
     }
 
     /// Whether the menu bar extra's window is open.
@@ -153,6 +164,11 @@ final class AppState {
         historyStorage.append(snapshot)
         historyRevision &+= 1
         latestSnapshot = snapshot
+        if case .notSampled = snapshot.processes {
+            // Keep the previous table.
+        } else if visibleSection == .processes {
+            latestProcesses = snapshot.processes
+        }
         updateMenuBarLabel()
     }
 

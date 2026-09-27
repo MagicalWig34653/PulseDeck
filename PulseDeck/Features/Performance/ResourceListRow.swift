@@ -69,8 +69,20 @@ struct ResourceListRow: View {
                 ChartSeries(label: "Read", color: .teal, value: { $0.values[0] }),
                 ChartSeries(label: "Write", color: .orange, value: { $0.values[1] }, isFilled: false),
             ], yAxis: .automatic(minimum: 100_000), format: Format.rate)
-        case .gpu, .energy:
-            return nil
+        case .gpu:
+            guard let first = appState.latestSnapshot?.gpu.value?.devices.first,
+                  first.utilization.unavailableReason != .noPublicAPI,
+                  let gpuHistory = history.gpus[first.id] else { return nil }
+            return Sparkline(history: gpuHistory, series: [ChartSeries(label: "Utilization", color: .green, value: { $0.values[0] })],
+                             yAxis: .fraction, format: Format.percent)
+        case .energy:
+            // Only where a power value can exist (portables); desktops show no sparkline.
+            guard let energy = appState.latestSnapshot?.energy.value,
+                  energy.battery.value != nil || energy.systemPowerWatts.value != nil else { return nil }
+            return Sparkline(history: history.energy, series: [
+                ChartSeries(label: "System Power In", color: .green, value: { $0.values[0] }),
+                ChartSeries(label: "Battery Discharging", color: .orange, value: { $0.values[2] }, isFilled: false),
+            ], yAxis: .automatic(minimum: 10), format: Format.watts)
         }
     }
 }
