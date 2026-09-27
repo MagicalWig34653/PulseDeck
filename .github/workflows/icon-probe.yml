@@ -1,0 +1,18 @@
+name: Icon probe (temporary)
+on:
+  push:
+    branches: [claude/serene-brown-x04boj]
+    paths: ['.github/icon-probe/**', '.github/workflows/icon-probe.yml']
+jobs:
+  probe:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/icon-probe/probe.py
+      - name: Locate ictool
+        run: |
+          find /Applications/Xcode*.app -maxdepth 6 -iname '*ictool*' 2>/dev/null || true
+          ls "/Applications/Xcode.app/Contents/Applications" || true
+          t=$(find /Applications/Xcode.app/ -maxdepth 6 -name ictool -type f 2>/dev/null | head -1)
+          echo "ictool=$t"
+          [ -n "$t" ] && "$t" --help 2>&1 | head -60 || true
