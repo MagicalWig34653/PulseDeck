@@ -172,5 +172,9 @@ Decisions requested from the product owner are marked **DECISION**.
 
 - Milestone 1 was authored in a Linux container without Xcode. The platform-independent core was
   compiled and tested locally with Swift 6.2.3 for Linux; the Xcode project and SwiftUI/AppKit code
-  are verified by the macOS GitHub Actions workflow (see the milestone report for the actual result).
-  Instruments profiling (SPEC §36) requires a Mac and is scheduled for Milestone 10.
+  are verified by the macOS GitHub Actions workflow. Milestone 1 result (run 36301687997, macOS 26.6.2,
+  Xcode 26.6 / Swift 6.3.3): `swift test -Xswiftc -warnings-as-errors` 50/50 passed; `xcodebuild build`
+  with `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` succeeded; `xcodebuild test` 50/50 passed.
+- CI cannot exercise the running GUI (menu bar residency, window close/reopen, Dock switching, sleep/wake)
+  or Darwin telemetry on real hardware; these need a manual check on a Mac. Instruments profiling
+  (SPEC §36) is scheduled for Milestone 10.
