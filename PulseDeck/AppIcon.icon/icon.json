@@ -1,5 +1,4 @@
 {
-  "color-space-for-untagged-svg-colors" : "srgb",
   "fill" : {
     "linear-gradient" : [
       "srgb:0.25098,0.35294,0.96078,1.00000",
