@@ -73,6 +73,10 @@ jobs:
           capture memory-light false -navigationPresentation topBar -initialCategory memory
           capture network-dark true -navigationPresentation topBar -initialCategory network
           capture disks-light false -navigationPresentation topBar -initialCategory disks
+          capture gpu-dark true -navigationPresentation topBar -initialCategory gpu
+          capture energy-light false -navigationPresentation topBar -initialCategory energy
+          capture processes-light false -navigationPresentation topBar -initialSection processes
+          capture processes-dark true -navigationPresentation sidebar -initialSection processes
           set_dark_mode false
 
       - name: Export rendered app icon

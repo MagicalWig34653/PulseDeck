@@ -44,6 +44,14 @@ Decisions by the product owner are recorded under each item.
 - **Decision (approved by the product owner):** use `IOAccelerator` `PerformanceStatistics`, clearly
   labelled as an undocumented source, with automatic fallback to `Not Available`. To be implemented in
   Milestone 6. IOReport stays excluded.
+- **Implemented (Milestone 6):** `GPUMonitor` identifies devices with `MTLCopyAllDevices()` and reads
+  `Device Utilization %` from every `IOAccelerator`'s `PerformanceStatistics`. A Metal device is paired
+  with the accelerator whose registry entry (or one of its three nearest parents) has the device's
+  `registryID`; with exactly one device and one accelerator they are paired directly. Missing key or
+  no match ⇒ *Not Available* (`noPublicAPI`); values outside 0–100 ⇒ `—`. The GPU page shows a visible
+  "undocumented driver statistic" note under the chart. Observed on the CI VM ("Apple Paravirtual
+  device"): the key is absent, so the page shows *Utilization Not Available* — a real Apple silicon Mac
+  still needs a manual check that the AGX driver's value matches Activity Monitor's GPU History.
 
 ## L‑2 · System, CPU/package and GPU power (watts)
 
@@ -74,6 +82,15 @@ Decisions by the product owner are recorded under each item.
 - **Decision (approved by the product owner):** use `PowerTelemetryData.SystemPowerIn` (portables
   only) as a clearly labelled undocumented source with fallback to `Not Available`. To be implemented
   and validated in Milestone 7. IOReport and SMC stay excluded.
+- **Implemented (Milestone 7):** `SystemPowerIn` (mW) is shown as **System Power In** — the power drawn
+  from the adapter, which includes battery charging — with a visible "undocumented" note. It is *not
+  applicable* on battery power (the controller reports no adapter input then; it is never replaced by
+  battery power, and never shown as `0 W`). Zero or > 1 kW readings on AC ⇒ `—`. Battery power is derived
+  from IOPS `Voltage` × `Current` and labelled "(derived)" with its direction (charging/discharging).
+  Adapter rating is shown as "N W rated". The CI VM has no battery, so these paths are covered by unit
+  tests only; **needs a manual check on a MacBook** (on AC and on battery). If IOPS omits `Voltage` or
+  `Current` on some model, battery power shows *Not Available*; the undocumented `AppleSmartBattery`
+  `Voltage`/`Amperage` properties could fill that gap but were not approved and are not used.
 
 ## L‑3 · Disk utilization / active time
 
@@ -128,6 +145,8 @@ Decisions by the product owner are recorded under each item.
 - **Undocumented/private alternatives:** coalition energy via private `coalition_info` SPI;
   `powermetrics --show-process-energy` (root CLI, forbidden).
 - **Recommendation:** validate `ri_energy_nj` in Milestone 8; ship only if validation passes.
+- **Status (Milestone 8):** not validated — validation needs a real Mac on battery, which the CI VM is
+  not. The Processes table therefore has **no Energy column**.
 
 ## L‑6 · Friendly VPN names
 
@@ -155,6 +174,11 @@ Decisions by the product owner are recorded under each item.
   failures show an alert explaining the permission error.
 - **Privileged alternative:** `SMAppService.daemon` privileged helper. **Recommendation:** not in v1
   (SPEC §37: avoid unless unavoidable).
+- **Verified (Milestone 8, CI runner, macOS 26):** for other users' processes `PROC_PIDTASKALLINFO`,
+  `PROC_PIDTBSDINFO` and `proc_pid_rusage` all fail with `EPERM` (234 of 525 processes on the runner).
+  Identity (start time), owner and short name then come from `sysctl(KERN_PROC_PID)` → `kinfo_proc`
+  (public, what `ps` uses), so these rows are still listed; CPU/memory/threads/disk show `—` with the
+  explanation, and the footer counts them.
 
 ## L‑8 · Current memory-pressure level at launch
 

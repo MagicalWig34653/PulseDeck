@@ -333,8 +333,9 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
 - **Energy** — `IOPSCopyPowerSourcesInfo` + `IOPSNotificationCreateRunLoopSource` (charge %, state,
   time remaining, `Voltage` mV, `Current` mA). Battery power = V × I, **derived**, labelled
   "Battery (charge/discharge) power", never presented as system power. System/CPU/GPU power: L‑2.
-- **Processes** — `proc_listallpids`, `proc_pidinfo(PROC_PIDTBSDINFO / PROC_PIDTASKINFO)`,
-  `proc_pid_rusage(RUSAGE_INFO_V6)` (CPU times, `ri_phys_footprint`, `ri_diskio_bytesread/written`),
+- **Processes** — `proc_listallpids`, `proc_pidinfo(PROC_PIDTASKALLINFO)` (falls back to
+  `PROC_PIDTBSDINFO`, then `sysctl(KERN_PROC_PID)` for other users' processes),
+  `proc_pid_rusage(RUSAGE_INFO_V4)` (CPU times, `ri_phys_footprint`, `ri_diskio_bytesread/written`),
   `proc_pidpath`/`NSRunningApplication` for names and icons. CPU time units: see R3. Actions:
   `NSRunningApplication.terminate()/forceTerminate()` for apps, `kill(SIGTERM/SIGKILL)` otherwise,
   confirmation dialogs, `EPERM` surfaced as an alert. Show in Finder:
@@ -394,9 +395,9 @@ Current status and hand-off notes for the next session: [`CLAUDE.md`](CLAUDE.md)
 | 3 | Memory | `MemoryMonitor`, pressure source, charts | documented Used formula | ✅ v0.2.0 |
 | 4 | Network | `NetworkMonitor`, classification, VPN/tunnel, hot-plug | per-interface charts, counter-reset tests | ✅ v0.2.0 (IP addresses v0.3.0) |
 | 5 | Disk | `DiskMonitor`, IORegistry capacity mapping | hot-plug safe, rate tests | ✅ v0.2.0 |
-| 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) | next |
-| 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown | open |
-| 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests | open |
+| 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) | ✅ (IOAccelerator utilization, labelled) |
+| 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown | ✅ (`SystemPowerIn` labelled; needs MacBook check) |
+| 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests | ✅ (`kinfo_proc` fallback for other users, L‑7) |
 | 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | partly (adaptive sampling, menu bar metric done) |
 | 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | open |
 | 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | open |

@@ -6,30 +6,36 @@ Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.l
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.3.0)
+## Status (last updated after Milestones 6–8)
 
 | Milestone (SPEC §39) | State |
 |---|---|
 | 1 Foundation — project, lifecycle, menu bar, navigation, models, engine | ✅ done (v0.1.0) |
 | 2 CPU · 3 Memory · 4 Network · 5 Disk — collectors, 60 s charts with hover | ✅ done (v0.2.0) |
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
-| **6 GPU** | ⏭ **next** |
-| 7 Energy · 8 Processes · 9 Menu bar · 10 Instruments optimization · 11 Polish | open |
+| 6 GPU · 7 Energy · 8 Processes | ✅ implemented, CI green (release pending: v0.4.0) |
+| **9 Menu bar** | ⏭ **next** |
+| 10 Instruments optimization · 11 Polish | open |
 
 The product owner approves each milestone explicitly. Ask before starting one unless the request already says so.
 
-### Next: Milestone 6 (GPU)
-- Identification via Metal `MTLCopyAllDevices()` (name, `registryID`, unified memory, low power, removable).
-  Model: `GPUSnapshot` / `GPUDeviceSnapshot` already exist in `PulseDeckCore/Models/GPUSnapshot.swift`.
-- Utilization: the product owner **approved** IOKit `IOAccelerator` → `PerformanceStatistics` →
-  `"Device Utilization %"`. It is undocumented, so label it as such in the UI and fall back to
-  *Not Available* when the key is missing (L‑1). **IOReport stays excluded** (private).
-- Add a `GPUMonitor` actor in `PulseDeckTelemetry`, register it in `DarwinTelemetry.makeProviders()`,
-  add a `GPUPerformanceView` and route `.gpu` in `ResourceDetailView`. Add GPU history to `SystemHistory`
-  and a sparkline in `ResourceListRow`. GPU is demand-driven (`SamplingPolicy.demand`).
-- Then M7 Energy: IOPS battery (`IOPSCopyPowerSourcesInfo`, Voltage/Current → *derived* battery
-  power). `PowerTelemetryData.SystemPowerIn` is approved as an undocumented, labelled source,
-  portables only. Never present battery power as system power (SPEC §19).
+### What M6–M8 added (read before touching them)
+- `GPUMonitor` (Metal + IOAccelerator `Device Utilization %`), `EnergyMonitor` (IOPS battery, derived
+  battery power, `SystemPowerIn`, adapter rating), `ProcessMonitor` + `ProcessControl` (libproc, PID +
+  start-time identity). Maths in `PulseDeckCore/Calculation/{GPUUtilization,EnergyCalculator,ProcessUsageTracker}.swift`.
+- GPU/energy/processes are demand-driven. `SystemHistory.gpus` (per registry ID) and `.energy`
+  (series: system power in, battery charging W, battery discharging W). `AppState.latestProcesses` holds
+  the table while the Processes section is visible.
+- Undocumented sources carry a visible `SourceNote` on their page. Derived values render with
+  "(derived)" via `Format.attributed`.
+- **Needs a real Mac** (CI is a VM without battery; its paravirtual GPU has no utilization key):
+  GPU utilization vs. Activity Monitor, `SystemPowerIn`/battery values on a MacBook (AC and battery),
+  process CPU % vs. Activity Monitor, Quit/Force Quit of an app. L‑5 (process energy) is still unvalidated,
+  so there is no Energy column.
+
+### Next: Milestone 9 (Menu bar)
+- Popover redesign (compact rows with sparklines), menu bar metric review (energy currently shows
+  signed battery power), verify reduced background sampling. See SPEC §23–24.
 
 ## Repository map
 ```
@@ -42,7 +48,7 @@ PulseDeckKit/              Swift package
   Sources/PulseDeckCore/   platform-independent: models, MetricState, MonitoringEngine (actor), SamplingPolicy,
                            RingBuffer, SystemHistory, calculators (CPU ticks, memory, rates, classifier, addresses)
   Sources/PulseDeckTelemetry/  macOS-only collectors (all files wrapped in `#if os(macOS)`): CPU, Memory,
-                           Network, Disk monitors + DarwinTelemetry factory
+                           Network, Disk, GPU, Energy, Process monitors, ProcessControl + DarwinTelemetry factory
   Tests/PulseDeckCoreTests/     unit tests (run on Linux and macOS)
   Tests/PulseDeckTelemetryTests/ smoke tests against the real Mac; print readings to the CI log
 packaging/dmg/, scripts/   DMG build (dmgbuild + AppKit-rendered background), window capture, Linux toolchain setup
@@ -93,7 +99,7 @@ run `screenshots.yml` with `commit: true` → pull → review images → PR → 
 - Never fabricate telemetry. Missing values are `MetricState.unavailable(reason)` → UI "Not Available"
   (or "—" for transient reasons), never `0`. Derived or estimated values carry `ValueProvenance`.
 - Public APIs first. Undocumented sources only with the owner's approval, labelled in the UI, with fallback.
-  Approved so far: memory-pressure sysctl (implemented), IOAccelerator GPU stats (M6), `SystemPowerIn` (M7).
+  Approved and implemented: memory-pressure sysctl, IOAccelerator GPU stats (M6), `SystemPowerIn` (M7).
 - No shell-command polling, no private frameworks, no privileged helper, no App Sandbox (see plan §11).
 - Collection happens off the MainActor in actors. History stays bounded (`SystemHistory.capacity = 61`).
 - Swift 6 language mode, zero warnings (CI treats warnings as errors), no force unwraps in telemetry paths,
@@ -114,12 +120,16 @@ run `screenshots.yml` with `commit: true` → pull → review images → PR → 
   global appearance. Launch with `open -n` so the window is active.
 - `mach_task_self_` compiles fine in Swift 6 on Xcode 26.6.
 - The runner is a VM ("Apple M2 Pro (Virtual)", VirtIO disk, many mounted simulator disk images). That's expected.
-- Screenshot pages are selected with the `-initialCategory <cpu|memory|disks|network>` launch preference
-  (`PreferenceKey.initialCategory`); `-cpuChartMode logicalProcessors` selects the per-core view.
+- Screenshot pages are selected with the `-initialCategory <cpu|memory|disks|network|gpu|energy>` launch preference
+  (`PreferenceKey.initialCategory`) or `-initialSection processes`; `-cpuChartMode logicalProcessors` selects the per-core view.
+- On macOS 26 `PROC_PIDTBSDINFO` fails with `EPERM` for other users' processes (not only task info).
+  Use `sysctl(KERN_PROC_PID)` → `kinfo_proc` for their identity; `p_starttime` is `p_un.__p_starttime` in Swift.
+- `Result<Void, E>` is not `Equatable`: test with `try result.get()` / `#expect(throws:)`.
+- `alert(item:content:)` is deprecated (fails the warnings-as-errors build); use `alert(_:isPresented:presenting:)`.
 
 ## Known open items
 - Release builds are ad-hoc signed, not notarized (no Developer ID secrets). Xcode disables the hardened
   runtime for ad-hoc signing. README documents the Gatekeeper workaround.
-- Not yet done: Instruments profiling (M10), Launch at Login via `SMAppService` (M11), VoiceOver pass,
-  menu bar popover redesign (M9), process table (M8).
+- Not yet done: Instruments profiling (M10; include the process table at 1 Hz, ~2 syscalls per process),
+  Launch at Login via `SMAppService` (M11), VoiceOver pass, menu bar popover redesign (M9).
 - Disk images appear in the Disks list (labelled "Disk Image"). The owner hasn't asked to hide them.
