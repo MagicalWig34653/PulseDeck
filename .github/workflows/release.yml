@@ -57,6 +57,7 @@ jobs:
       - name: Build app (Release, universal)
         run: |
           set -o pipefail
+          mkdir -p build # tee needs the directory before xcodebuild creates it
           xcodebuild build \
             -project PulseDeck.xcodeproj \
             -scheme PulseDeck \
