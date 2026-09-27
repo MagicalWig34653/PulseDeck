@@ -26,8 +26,9 @@ public actor NetworkMonitor: TelemetryProvider {
         var displayName: String?
     }
 
-    /// How often the primary interface (default route) is re-read from configd.
-    private static let primaryInterfaceRefreshInterval: Duration = .seconds(5)
+    /// How often addresses and the primary interface (default route) are re-read. DHCP renewals
+    /// and VPN changes show up within this interval; interface-set changes trigger a re-read.
+    private static let addressingRefreshInterval: Duration = .seconds(5)
 
     private var tracker = CounterRateTracker<String>()
     /// Grow-only scratch buffer for the sysctl result, reused across samples.
@@ -36,7 +37,9 @@ public actor NetworkMonitor: TelemetryProvider {
     private var configuredNames: Set<String> = []
     private let store: SCDynamicStore?
     private var primaryInterface: String?
-    private var primaryInterfaceReadAt: MonotonicInstant?
+    /// Local addresses per interface, refreshed together with the primary interface.
+    private var addresses: [String: [String]] = [:]
+    private var addressingReadAt: MonotonicInstant?
 
     public init() {
         store = SCDynamicStoreCreate(nil, "de.linolaske.PulseDeck.NetworkMonitor" as CFString, nil, nil)
@@ -54,10 +57,10 @@ public actor NetworkMonitor: TelemetryProvider {
         if names != configuredNames {
             configuration = Self.readSystemConfiguration()
             configuredNames = names
-            // A changed interface set often means a changed default route (VPN, cable).
-            primaryInterfaceReadAt = nil
+            // A changed interface set often means changed addresses and default route.
+            addressingReadAt = nil
         }
-        refreshPrimaryInterface(at: instant)
+        refreshAddressing(at: instant)
 
         var interfaces: [NetworkInterfaceSnapshot] = []
         interfaces.reserveCapacity(raw.count)
@@ -81,7 +84,8 @@ public actor NetworkMonitor: TelemetryProvider {
                 receivedBytesPerSecond: rates[0],
                 sentBytesPerSecond: rates[1],
                 totalBytesReceived: item.bytesReceived,
-                totalBytesSent: item.bytesSent
+                totalBytesSent: item.bytesSent,
+                addresses: addresses[item.name] ?? []
             ))
         }
         tracker.retainOnly(names)
@@ -90,7 +94,7 @@ public actor NetworkMonitor: TelemetryProvider {
 
     public func invalidateBaselines() {
         tracker.reset()
-        primaryInterfaceReadAt = nil
+        addressingReadAt = nil
     }
 
     // MARK: - Routing sysctl
@@ -184,14 +188,42 @@ public actor NetworkMonitor: TelemetryProvider {
         return result
     }
 
-    /// The interface of the default IPv4 route, published by configd at
-    /// `State:/Network/Global/IPv4` → `PrimaryInterface`.
-    private func refreshPrimaryInterface(at instant: MonotonicInstant) {
-        if let readAt = primaryInterfaceReadAt,
-           instant.nanoseconds(since: readAt) < Self.primaryInterfaceRefreshInterval.nanosecondsClamped {
+    private func refreshAddressing(at instant: MonotonicInstant) {
+        if let readAt = addressingReadAt,
+           instant.nanoseconds(since: readAt) < Self.addressingRefreshInterval.nanosecondsClamped {
             return
         }
-        primaryInterfaceReadAt = instant
+        addressingReadAt = instant
+        addresses = Self.readAddresses()
+        refreshPrimaryInterface()
+    }
+
+    /// Local IPv4/IPv6 addresses per interface from `getifaddrs(3)`, rendered numerically with
+    /// `getnameinfo(NI_NUMERICHOST)` (no DNS lookups, no network access).
+    private static func readAddresses() -> [String: [String]] {
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return [:] }
+        defer { freeifaddrs(head) }
+
+        var result: [String: [String]] = [:]
+        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        for entry in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            guard let address = entry.pointee.ifa_addr else { continue }
+            let family = Int32(address.pointee.sa_family)
+            guard family == AF_INET || family == AF_INET6 else { continue }
+            let status = getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count),
+                                     nil, 0, NI_NUMERICHOST)
+            guard status == 0 else { continue }
+            let text = String(decoding: host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            let name = String(cString: entry.pointee.ifa_name)
+            result[name, default: []].append(NetworkAddressOrdering.withoutZone(text))
+        }
+        return result.mapValues(NetworkAddressOrdering.sorted)
+    }
+
+    /// The interface of the default IPv4 route, published by configd at
+    /// `State:/Network/Global/IPv4` → `PrimaryInterface`.
+    private func refreshPrimaryInterface() {
         guard let store,
               let value = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any]
         else {

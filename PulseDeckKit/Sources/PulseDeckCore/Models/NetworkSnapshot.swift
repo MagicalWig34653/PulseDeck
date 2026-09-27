@@ -24,10 +24,21 @@ public struct NetworkInterfaceSnapshot: Hashable, Sendable, Identifiable {
     public var sentBytesPerSecond: MetricState<Double>
     public var totalBytesReceived: UInt64
     public var totalBytesSent: UInt64
+    /// Local IPv4/IPv6 addresses, ordered by `NetworkAddressOrdering` (IPv4 first, link-local
+    /// last).
+    public var addresses: [String]
 
     public var bsdName: String { id }
 
-    public init(id: String, displayName: String?, kind: NetworkInterfaceKind, isUp: Bool, receivedBytesPerSecond: MetricState<Double>, sentBytesPerSecond: MetricState<Double>, totalBytesReceived: UInt64, totalBytesSent: UInt64) {
+    /// First IPv4 address, if any.
+    public var ipv4Address: String? { addresses.first(where: NetworkAddressOrdering.isIPv4) }
+
+    /// First routable (non-link-local) IPv6 address, if any.
+    public var ipv6Address: String? {
+        addresses.first { !NetworkAddressOrdering.isIPv4($0) && !NetworkAddressOrdering.isLinkLocal($0) }
+    }
+
+    public init(id: String, displayName: String?, kind: NetworkInterfaceKind, isUp: Bool, receivedBytesPerSecond: MetricState<Double>, sentBytesPerSecond: MetricState<Double>, totalBytesReceived: UInt64, totalBytesSent: UInt64, addresses: [String] = []) {
         self.id = id
         self.displayName = displayName
         self.kind = kind
@@ -36,6 +47,7 @@ public struct NetworkInterfaceSnapshot: Hashable, Sendable, Identifiable {
         self.sentBytesPerSecond = sentBytesPerSecond
         self.totalBytesReceived = totalBytesReceived
         self.totalBytesSent = totalBytesSent
+        self.addresses = addresses
     }
 }
 

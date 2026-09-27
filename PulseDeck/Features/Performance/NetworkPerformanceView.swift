@@ -23,6 +23,15 @@ struct NetworkPerformanceView: View {
         }
     }
 
+    private var hiddenCount: Int {
+        guard let network = state?.value, !showsAllInterfaces else { return 0 }
+        return network.interfaces.count(where: \.isNormallyHidden)
+    }
+
+    private var toggleTitle: LocalizedStringResource {
+        hiddenCount > 0 ? "Show \(hiddenCount) inactive" : "Show inactive"
+    }
+
     private var selectedInterface: NetworkInterfaceSnapshot? {
         let list = interfaces
         return list.first { $0.id == selection } ?? list.first
@@ -38,11 +47,12 @@ struct NetworkPerformanceView: View {
             }
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 20) {
                     let selected = selectedInterface
                     DetailHeader(
                         title: selected?.title ?? String(localized: "Network Interfaces"),
-                        subtitle: selected.map { "\($0.kind.label) · \($0.id)" }
+                        subtitle: selected.map(Self.subtitle),
+                        value: selected.map(Self.throughput)
                     )
 
                     TimeSeriesChart(
@@ -55,42 +65,51 @@ struct NetworkPerformanceView: View {
                         format: Format.rate,
                         accessibilityLabel: Text("Network throughput of \(selected?.id ?? "")")
                     )
-                    .frame(height: 220)
+                    .frame(height: 200)
 
                     if let selected {
-                        statistics(for: selected)
+                        DetailSection(title: "Traffic") {
+                            StatisticView(label: "Download", value: selected.receivedBytesPerSecond.map(Format.rate))
+                            StatisticView(label: "Upload", value: selected.sentBytesPerSecond.map(Format.rate))
+                            StatisticView(label: "Received", value: .available(Format.storage(selected.totalBytesReceived)),
+                                          help: "Bytes received since the interface was created.")
+                            StatisticView(label: "Sent", value: .available(Format.storage(selected.totalBytesSent)),
+                                          help: "Bytes sent since the interface was created.")
+                        }
+                        DetailSection(title: "Addresses") {
+                            StatisticView(label: "IPv4 Address", value: selected.ipv4Address.map { .available($0) } ?? .unavailable(.notApplicable))
+                            StatisticView(label: "IPv6 Address", value: selected.ipv6Address.map { .available($0) } ?? .unavailable(.notApplicable))
+                            StatisticView(label: "Interface", value: .available(selected.id))
+                            StatisticView(label: "Status", value: .available(selected.isUp ? String(localized: "Connected") : String(localized: "Inactive")))
+                        }
                     }
 
-                    HStack {
-                        Text("Interfaces")
-                            .font(.headline)
-                        Spacer()
-                        Toggle("Show all interfaces", isOn: $showsAllInterfaces)
-                            .toggleStyle(.checkbox)
-                            .help("Also show loopback and interfaces that are down and have never carried traffic.")
+                    SectionHeader(title: "Interfaces") {
+                        Toggle(isOn: $showsAllInterfaces) {
+                            Text(toggleTitle)
+                        }
+                        .toggleStyle(.switch)
+                        .help("Also show loopback and interfaces that have never received or sent data.")
                     }
-
                     interfaceTable
                 }
-                .padding(24)
+                .padding(20)
             }
         }
     }
 
-    /// Keeps the axis from amplifying background chatter on an idle link (10 KB/s).
+    /// Keeps the axis from amplifying background chatter on an idle link (10 kB/s).
     private static let minimumChartScale = 10_000.0
 
-    private func statistics(for interface: NetworkInterfaceSnapshot) -> some View {
-        StatisticsGrid {
-            StatisticView(label: "Download", value: interface.receivedBytesPerSecond.map(Format.rate))
-            StatisticView(label: "Upload", value: interface.sentBytesPerSecond.map(Format.rate))
-            StatisticView(label: "Received", value: .available(Format.storage(interface.totalBytesReceived)),
-                          help: "Bytes received since the interface was created.")
-            StatisticView(label: "Sent", value: .available(Format.storage(interface.totalBytesSent)),
-                          help: "Bytes sent since the interface was created.")
-            StatisticView(label: "Status", value: .available(interface.isUp ? String(localized: "Up") : String(localized: "Down")))
-            StatisticView(label: "Type", value: .available(interface.kind.label))
-            StatisticView(label: "Interface", value: .available(interface.id))
+    private static func subtitle(_ interface: NetworkInterfaceSnapshot) -> String {
+        [interface.kind.label, interface.id, interface.ipv4Address ?? interface.ipv6Address]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+
+    private static func throughput(_ interface: NetworkInterfaceSnapshot) -> MetricState<String> {
+        interface.receivedBytesPerSecond.flatMap { received in
+            interface.sentBytesPerSecond.map { sent in "↓ \(Format.rate(received))  ↑ \(Format.rate(sent))" }
         }
     }
 
@@ -102,32 +121,41 @@ struct NetworkPerformanceView: View {
                     Text(verbatim: interface.title)
                 } icon: {
                     Image(systemName: interface.kind.systemImage)
+                        .foregroundStyle(interface.isUp ? Color.accentColor : Color.secondary)
                 }
             }
-            .width(min: 140, ideal: 180)
+            .width(min: 140, ideal: 170)
             TableColumn("Name") { interface in
                 Text(verbatim: interface.id).foregroundStyle(.secondary)
             }
-            .width(min: 60, ideal: 70)
+            .width(min: 50, ideal: 60)
+            TableColumn("IP Address") { interface in
+                Text(verbatim: interface.ipv4Address ?? interface.ipv6Address ?? AppState.placeholder)
+                    .foregroundStyle(interface.addresses.isEmpty ? Color.secondary : Color.primary)
+                    .textSelection(.enabled)
+            }
+            .width(min: 90, ideal: 130)
             TableColumn("Download") { interface in
                 MetricStateText(state: interface.receivedBytesPerSecond.map(Format.rate))
             }
+            .width(min: 70, ideal: 80)
             TableColumn("Upload") { interface in
                 MetricStateText(state: interface.sentBytesPerSecond.map(Format.rate))
             }
+            .width(min: 70, ideal: 80)
             TableColumn("Received") { interface in
                 Text(verbatim: Format.storage(interface.totalBytesReceived)).monospacedDigit()
             }
-            TableColumn("Sent") { interface in
-                Text(verbatim: Format.storage(interface.totalBytesSent)).monospacedDigit()
-            }
+            .width(min: 70, ideal: 80)
         }
+        .tableStyle(.inset(alternatesRowBackgrounds: true))
         .frame(height: Self.tableHeight(rows: rows.count))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 0.5))
     }
 
     static func tableHeight(rows: Int) -> CGFloat {
-        let rowHeight: CGFloat = 24
-        let headerHeight: CGFloat = 32
+        let rowHeight: CGFloat = 26
+        let headerHeight: CGFloat = 34
         let maximum: CGFloat = 360
         return min(CGFloat(max(rows, 1)) * rowHeight + headerHeight, maximum)
     }

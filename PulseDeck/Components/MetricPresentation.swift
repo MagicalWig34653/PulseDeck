@@ -72,11 +72,11 @@ extension NetworkInterfaceSnapshot {
     /// "Wi‑Fi", "Thunderbolt Bridge", or the generic kind label (e.g. "VPN / Tunnel").
     var title: String { displayName ?? kind.label }
 
-    /// Interfaces hidden unless "Show all interfaces" is on: loopback and interfaces that are
-    /// down and have never carried traffic. Unclassified interfaces are never hidden for that
-    /// reason alone (SPEC §17).
+    /// Interfaces hidden unless "Show all interfaces" is on: loopback and interfaces that have
+    /// never received or sent a byte. Unclassified interfaces are never hidden for that reason
+    /// alone (SPEC §17), and the toggle keeps every interface reachable.
     var isNormallyHidden: Bool {
-        kind == .loopback || (!isUp && totalBytesReceived == 0 && totalBytesSent == 0)
+        kind == .loopback || (totalBytesReceived == 0 && totalBytesSent == 0)
     }
 }
 
@@ -215,19 +215,22 @@ struct MetricStateText: View {
     }
 }
 
-/// A labelled statistic in the detail pages' statistics grid.
+/// A labelled statistic inside a `DetailSection`.
 struct StatisticView: View {
     let label: LocalizedStringResource
     let value: MetricState<String>?
     var help: LocalizedStringResource?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             MetricStateText(state: value)
-                .font(.title3.weight(.medium))
+                .font(.title3)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .help(help.map { Text($0) } ?? Text(verbatim: ""))
@@ -235,34 +238,80 @@ struct StatisticView: View {
     }
 }
 
-/// Adaptive grid of statistics.
-struct StatisticsGrid<Content: View>: View {
+/// A titled group of statistics in the native macOS group box style.
+struct DetailSection<Content: View>: View {
+    let title: LocalizedStringResource
     @ViewBuilder let content: Content
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), alignment: .topLeading)], alignment: .leading, spacing: 14) {
-            content
+        GroupBox {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 16, alignment: .topLeading)],
+                      alignment: .leading, spacing: 14) {
+                content
+            }
+            .padding(8)
+        } label: {
+            Text(title)
+                .font(.headline)
         }
     }
 }
 
-/// Title row of a detail page: large title on the leading side, device/model on the trailing.
+/// Header of a detail page. The toolbar already names the category, so the header shows the
+/// concrete device, a secondary detail line and the current value (HIG: avoid repeating the
+/// window title; lead with the most important information).
 struct DetailHeader: View {
     let title: String
     var subtitle: String?
+    var value: MetricState<String>?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(verbatim: title)
+                    .font(.title2.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                if let subtitle {
+                    Text(verbatim: subtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+            Spacer(minLength: 12)
+            if let value {
+                MetricStateText(state: value)
+                    .font(.system(.title, design: .rounded).weight(.medium))
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Title row above a table, with optional trailing controls.
+struct SectionHeader<Accessory: View>: View {
+    let title: LocalizedStringResource
+    @ViewBuilder var accessory: Accessory
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(verbatim: title)
-                .font(.largeTitle.weight(.semibold))
+            Text(title)
+                .font(.headline)
             Spacer()
-            if let subtitle {
-                Text(verbatim: subtitle)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
+            accessory
+                .controlSize(.small)
         }
+    }
+}
+
+extension SectionHeader where Accessory == EmptyView {
+    init(title: LocalizedStringResource) {
+        self.title = title
+        accessory = EmptyView()
     }
 }

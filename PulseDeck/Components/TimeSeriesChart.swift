@@ -35,6 +35,8 @@ struct TimeSeriesChart: View {
     /// Small variant (sparklines, per-core grid): no axis labels.
     var isCompact = false
     var allowsHover = true
+    /// Draw the plot background and border. Defaults to framed for full charts only.
+    var isFramed: Bool?
 
     var body: some View {
         let window = ChartWindow(history: history)
@@ -55,8 +57,7 @@ struct TimeSeriesChart: View {
                     ChartHoverOverlay(history: history, series: series, window: window, upperBound: upperBound, format: format)
                 }
             }
-            .background(.background.secondary.opacity(isCompact ? 0.5 : 1), in: .rect(cornerRadius: isCompact ? 4 : 8))
-            .overlay(RoundedRectangle(cornerRadius: isCompact ? 4 : 8).strokeBorder(.separator, lineWidth: 0.5))
+            .modifier(ChartFrame(isFramed: isFramed ?? !isCompact))
             if !isCompact {
                 HStack(spacing: 12) {
                     Text("60 seconds")
@@ -111,6 +112,22 @@ struct TimeSeriesChart: View {
             return String(localized: "No data")
         }
         return String(localized: "Current \(format(current)), peak \(format(peak)) in the last 60 seconds")
+    }
+}
+
+/// Background and border of the plot area. Sparklines stay unframed so they read as a quiet
+/// glyph in lists, including on a selected (accent-colored) row.
+private struct ChartFrame: ViewModifier {
+    let isFramed: Bool
+
+    func body(content: Content) -> some View {
+        if !isFramed {
+            content
+        } else {
+            content
+                .background(.background.secondary, in: .rect(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 0.5))
+        }
     }
 }
 

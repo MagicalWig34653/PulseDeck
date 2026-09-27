@@ -241,3 +241,27 @@ struct ChartScaleTests {
         #expect(ChartScale.niceUpperBound(for: .nan, minimum: 1_000) == 1_000)
     }
 }
+
+@Suite("Network addresses")
+struct NetworkAddressOrderingTests {
+    @Test func ordersIPv4ThenRoutableIPv6ThenLinkLocal() {
+        let sorted = NetworkAddressOrdering.sorted(["fe80::1", "2001:db8::5", "192.168.1.20", "169.254.3.4"])
+        #expect(sorted == ["192.168.1.20", "2001:db8::5", "169.254.3.4", "fe80::1"])
+    }
+
+    @Test func stripsZoneIndex() {
+        #expect(NetworkAddressOrdering.withoutZone("fe80::1%en0") == "fe80::1")
+        #expect(NetworkAddressOrdering.withoutZone("10.0.0.1") == "10.0.0.1")
+    }
+
+    @Test func snapshotAccessors() {
+        let interface = NetworkInterfaceSnapshot(
+            id: "en0", displayName: "Wi-Fi", kind: .wifi, isUp: true,
+            receivedBytesPerSecond: .available(0), sentBytesPerSecond: .available(0),
+            totalBytesReceived: 1, totalBytesSent: 1,
+            addresses: NetworkAddressOrdering.sorted(["fe80::1", "fd00::2", "10.0.0.7"])
+        )
+        #expect(interface.ipv4Address == "10.0.0.7")
+        #expect(interface.ipv6Address == "fd00::2")
+    }
+}
