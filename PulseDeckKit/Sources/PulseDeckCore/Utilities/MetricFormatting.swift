@@ -10,18 +10,18 @@ public enum MetricFormatting {
 
     /// Memory-style sizes (binary multiples, as Activity Monitor/Finder show RAM).
     public static func memoryBytes(_ bytes: UInt64, locale: Locale = .current) -> String {
-        Int64(clamping: bytes).formatted(.byteCount(style: .memory).locale(locale))
+        Int64(clamping: bytes).formatted(.byteCount(style: .memory, spellsOutZero: false).locale(locale))
     }
 
     /// Storage/transfer sizes (decimal multiples, as macOS shows disk capacity).
     public static func storageBytes(_ bytes: UInt64, locale: Locale = .current) -> String {
-        Int64(clamping: bytes).formatted(.byteCount(style: .file).locale(locale))
+        Int64(clamping: bytes).formatted(.byteCount(style: .file, spellsOutZero: false).locale(locale))
     }
 
     /// Throughput, e.g. "1.2 MB/s" (decimal multiples).
     public static func byteRate(_ bytesPerSecond: Double, locale: Locale = .current) -> String {
         let bytes = bytesPerSecond.isFinite ? Int64(clamping: Int64(max(bytesPerSecond, 0).rounded())) : 0
-        let size = bytes.formatted(.byteCount(style: .file).locale(locale))
+        let size = bytes.formatted(.byteCount(style: .file, spellsOutZero: false).locale(locale))
         return "\(size)/s"
     }
 

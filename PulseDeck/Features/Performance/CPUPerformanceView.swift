@@ -34,7 +34,7 @@ struct CPUPerformanceView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(maxWidth: 360)
+                .fixedSize()
 
                 switch mode {
                 case .overall:

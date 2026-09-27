@@ -56,7 +56,8 @@ jobs:
             set_dark_mode "$dark"
             # `open` launches like Finder does, so the app becomes active and its window key.
             open -n "$APP" --args "$@"
-            sleep 8
+            # Let a good part of the 60-second history fill before capturing.
+            sleep 40
             with_timeout osascript -e 'tell application "PulseDeck" to activate' || true
             sleep 2
             swift scripts/capture-window.swift PulseDeck "$OUT/$name.png" 600 2000
@@ -68,6 +69,10 @@ jobs:
           capture performance-dark true -navigationPresentation topBar
           capture sidebar-light false -navigationPresentation sidebar
           capture sidebar-dark true -navigationPresentation sidebar
+          capture cpu-cores-dark true -navigationPresentation topBar -cpuChartMode logicalProcessors
+          capture memory-light false -navigationPresentation topBar -initialCategory memory
+          capture network-dark true -navigationPresentation topBar -initialCategory network
+          capture disks-light false -navigationPresentation topBar -initialCategory disks
           set_dark_mode false
 
       - name: Export rendered app icon

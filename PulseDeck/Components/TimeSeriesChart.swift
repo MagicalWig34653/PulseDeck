@@ -43,7 +43,7 @@ struct TimeSeriesChart: View {
             if !isCompact {
                 HStack {
                     Spacer()
-                    Text(verbatim: format(upperBound))
+                    Text(verbatim: axisFormat(upperBound))
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -61,7 +61,7 @@ struct TimeSeriesChart: View {
                 HStack {
                     Text("60 seconds")
                     Spacer()
-                    Text(verbatim: format(0))
+                    Text(verbatim: axisFormat(0))
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -70,6 +70,14 @@ struct TimeSeriesChart: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(Text(verbatim: accessibilitySummary(in: window)))
+    }
+
+    /// Axis labels use whole percentages; the callout keeps the chart's (finer) format.
+    private func axisFormat(_ value: Double) -> String {
+        switch yAxis {
+        case .fraction: Format.percent(value)
+        case .automatic: format(value)
+        }
     }
 
     private func upperBound(in window: ChartWindow) -> Double {

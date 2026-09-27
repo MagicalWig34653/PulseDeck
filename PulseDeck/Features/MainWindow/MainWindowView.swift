@@ -27,6 +27,17 @@ struct MainWindowView: View {
         .onChange(of: section, initial: true) {
             appState.visibleSection = section
         }
+        .onAppear(perform: applyInitialCategory)
+    }
+
+    /// Optional `initialCategory` preference (e.g. launch argument `-initialCategory network`)
+    /// opens a specific Performance page; used for automated screenshots.
+    private func applyInitialCategory() {
+        guard let raw = UserDefaults.standard.string(forKey: PreferenceKey.initialCategory),
+              let initial = ResourceCategory(rawValue: raw)
+        else { return }
+        section = .performance
+        category = initial
     }
 }
 
@@ -112,7 +123,7 @@ private struct SidebarNavigation: View {
                     .tag(Item.processes)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 230)
+            .navigationSplitViewColumnWidth(min: 240, ideal: 270)
         } detail: {
             switch section {
             case .performance:
