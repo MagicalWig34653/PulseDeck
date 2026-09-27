@@ -124,6 +124,9 @@ swift test --package-path PulseDeckKit
 xcodebuild -project PulseDeck.xcodeproj -scheme PulseDeck -destination 'platform=macOS' test
 ```
 
+Without a Mac (e.g. a Linux container), `scripts/setup-linux-swift.sh` installs a Swift toolchain
+for building and testing the platform-independent core; see [`CLAUDE.md`](CLAUDE.md).
+
 Build a disk image locally:
 
 ```sh
