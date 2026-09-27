@@ -7,6 +7,8 @@ enum PreferenceKey {
     static let showMainWindowAtLaunch = "showMainWindowAtLaunch"
     static let keepRunningWhenWindowCloses = "keepRunningWhenWindowCloses"
     static let menuBarMetric = "menuBarMetric"
+    /// Performance page to open at launch (not shown in Settings; used for screenshots).
+    static let initialCategory = "initialCategory"
 }
 
 /// Scene identifiers.

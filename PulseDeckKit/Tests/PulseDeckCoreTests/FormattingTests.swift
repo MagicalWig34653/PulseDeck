@@ -29,6 +29,17 @@ struct FormattingTests {
         #expect(MetricFormatting.byteRate(1_500_000, locale: locale).hasSuffix("/s"))
     }
 
+    @Test func zeroIsANumber() {
+        // Foundation spells zero out ("Zero KB") by default; a monitor shows digits.
+        #expect(MetricFormatting.byteRate(0, locale: locale) == "0 kB/s")
+        #expect(MetricFormatting.byteRate(500, locale: locale) == "0.5 kB/s")
+        #expect(MetricFormatting.byteRate(12_345, locale: locale) == "12 kB/s")
+        #expect(MetricFormatting.byteRate(1_500_000, locale: locale) == "1.5 MB/s")
+        #expect(MetricFormatting.byteRate(2_000_000_000, locale: locale) == "2 GB/s")
+        #expect(MetricFormatting.byteRate(1_500_000, locale: Locale(identifier: "de_DE")) == "1,5 MB/s")
+        #expect(MetricFormatting.memoryBytes(0, locale: locale).hasPrefix("0"))
+    }
+
     @Test func byteStylesDiffer() {
         // 1 GiB is "1 GB" in memory style but ~"1.07 GB" in decimal file style.
         let gibibyte: UInt64 = 1 << 30

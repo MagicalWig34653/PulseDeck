@@ -17,6 +17,9 @@ public enum UnavailableReason: Hashable, Sendable {
     case invalidDelta
     /// A transient failure of the underlying API (e.g. an IOKit call failing).
     case transientFailure(String)
+    /// The metric does not apply to this device (e.g. free space of a disk without mounted
+    /// volumes).
+    case notApplicable
 }
 
 /// The value of one metric in one snapshot.

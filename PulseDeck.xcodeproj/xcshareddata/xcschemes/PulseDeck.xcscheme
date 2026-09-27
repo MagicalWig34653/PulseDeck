@@ -38,6 +38,16 @@
                ReferencedContainer = "container:PulseDeckKit">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "PulseDeckTelemetryTests"
+               BuildableName = "PulseDeckTelemetryTests"
+               BlueprintName = "PulseDeckTelemetryTests"
+               ReferencedContainer = "container:PulseDeckKit">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

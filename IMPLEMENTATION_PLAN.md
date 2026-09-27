@@ -49,7 +49,7 @@ The macOS CI workflow (`.github/workflows/ci.yml`) is the first line of that ver
 │ PulseDeckCore       Models · MetricState/capabilities · MonitoringEngine (actor) · SamplingPolicy ·      │
 │                     TelemetryProvider protocol · RingBuffer · counter/rate math · monotonic clock        │
 │                     (Foundation only — builds & tests on macOS and Linux)                               │
-│ PulseDeckTelemetry  (from Milestone 2) Darwin collectors: Mach, sysctl, libproc, IOKit, Metal, IOPS.    │
+│ PulseDeckTelemetry  Darwin collectors (CPU, memory, network, disk; later GPU, energy, processes).      │
 │                     macOS-only, each collector is an actor conforming to TelemetryProvider.            │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -80,11 +80,12 @@ PulseDeck/
 ├── App/            PulseDeckApp.swift · AppState.swift · AppLifecycleController.swift · Preferences.swift
 ├── Features/
 │   ├── MainWindow/ MainWindowView.swift · AppSection.swift
-│   ├── Performance/ PerformanceView.swift · ResourceCategory.swift · ResourceListRow.swift · ResourceDetailView.swift
+│   ├── Performance/ PerformanceView · ResourceCategory · ResourceListRow · ResourceDetailView ·
+│   │                CPU/Memory/Network/DiskPerformanceView
 │   └── Processes/  ProcessesView.swift
 ├── MenuBar/        MenuBarLabel.swift · MenuBarContentView.swift
 ├── Settings/       SettingsView.swift
-├── Components/     MetricPresentation.swift (MetricStateText, previews, reason texts)
+├── Components/     MetricPresentation.swift (MetricStateText, previews, statistics), TimeSeriesChart.swift
 └── System/         WindowVisibilityObserver.swift   (sleep/wake observers live in AppLifecycleController)
 PulseDeckKit/
 ├── Package.swift
@@ -92,9 +93,14 @@ PulseDeckKit/
 │   ├── Models/     SystemSnapshot, CPUSnapshot, CPUCoreSnapshot, MemorySnapshot, DiskSnapshot,
 │   │               NetworkSnapshot, GPUSnapshot, EnergySnapshot, ProcessSnapshot, MetricState, MetricKind
 │   ├── Monitoring/ MonitoringEngine, SamplingPolicy, TelemetryProvider, TelemetryProviders
-│   ├── History/    RingBuffer (+ TimestampedSample nearest lookup)
+│   ├── Calculation/ CPUUsageCalculator, MemoryCalculator, CounterRateTracker,
+│   │               NetworkInterfaceClassifier, ChartScale
+│   ├── History/    RingBuffer (+ TimestampedSample nearest lookup), SystemHistory
 │   └── Utilities/  MonotonicClock, CounterDelta (+ RateCalculator), MetricFormatting
-└── Tests/PulseDeckCoreTests/
+├── Sources/PulseDeckTelemetry/   (macOS only) CPUMonitor, MemoryMonitor, NetworkMonitor, DiskMonitor,
+│                                 Sysctl, DarwinTelemetry (provider factory)
+├── Tests/PulseDeckCoreTests/     (run on macOS and Linux)
+└── Tests/PulseDeckTelemetryTests/ (macOS smoke tests against the real system)
 ```
 
 ---
@@ -301,21 +307,27 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
   `used = (internal_page_count − purgeable_count + wire_count + compressor_page_count) × pageSize`
   i.e. App Memory + Wired + Compressed (the Activity Monitor definition).
   `cached = (external_page_count + purgeable_count) × pageSize`, `available = total − used`.
-  Pressure: `DispatchSource.makeMemoryPressureSource` (documented, event-driven). Initial level: see L‑8.
+  Pressure: polled from `kern.memorystatus_vm_pressure_level` (undocumented, approved; L‑8).
 - **Disk** — IOKit: `IOServiceGetMatchingServices(IOBlockStorageDriver)` → `Statistics` dictionary
   (`Bytes (Read)`, `Bytes (Write)`, `Operations (…)`, `Total Time (…)` ns), child `IOMedia`
-  (`BSD Name`, `Whole`, `Removable`, `Ejectable`, `Size`). Capacity/free via `URLResourceValues`
-  (`volumeTotalCapacity`, `volumeAvailableCapacityForImportantUsage`) of the mounted volumes on the
-  disk (APFS containers: map physical store → container → volumes through DiskArbitration
-  descriptions). Hot-plug via `DARegisterDiskAppearedCallback`/`Disappeared` on a DASession bound to
-  a private dispatch queue. Active time: L‑3.
+  (`BSD Name`, `Removable`, `Size`), parent device `Protocol Characteristics` (internal/external/
+  disk image) and `Device Characteristics` (product name). Devices are re-matched on every sample
+  (a handful of registry entries), so hot-plug and ejection need no separate notification path;
+  a re-attached device gets a new registry entry ID and therefore a fresh counter baseline.
+  Available space: `URLResourceValues.volumeAvailableCapacityForImportantUsage` of every mounted
+  volume whose BSD node descends from the disk in the IORegistry (disk0 → disk0s2 → APFS container
+  disk3 → disk3sN), counting each APFS container once; refreshed every 30 s or when the device set
+  changes. Active time: L‑3.
 - **Network** — `sysctl(CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0)` → `if_msghdr2.ifm_data`
   (`struct if_data64`, 64-bit `ifi_ibytes/ifi_obytes`). **Not** `getifaddrs`: its `if_data` counters
   are `u_int32_t` and wrap every 4 GiB. Classification: `ifi_type` (`IFT_ETHER`, `IFT_BRIDGE`,
   `IFT_CELLULAR`, `IFT_LOOP`, `IFT_GIF`, `IFT_STF`, `IFT_PPP`…) + `SCNetworkInterfaceCopyAll()`
   (Wi‑Fi = `IEEE80211`, Thunderbolt Bridge, Ethernet) + name prefix (`utun`, `ipsec`, `ppp`, `tun`,
-  `tap`, `wg`) ⇒ `VPN / Tunnel`. Loopback hidden by default (shown in an "All interfaces" disclosure),
-  every other interface is shown even if unclassified (SPEC §17).
+  `tap`, `wg`) ⇒ `VPN / Tunnel`. `IFT_ETHER` without SystemConfiguration information stays
+  unclassified (it may be Wi‑Fi). Loopback and never-used down interfaces are behind a "Show all
+  interfaces" toggle; unclassified interfaces are always shown (SPEC §17). The primary interface
+  (`State:/Network/Global/IPv4` → `PrimaryInterface`) drives the resource-list preview and the menu
+  bar network metric, avoiding double counting of tunnel and bridge traffic.
 - **GPU** — Metal `MTLCopyAllDevices()` for identification (name, `registryID`, `hasUnifiedMemory`,
   `isLowPower`, `isRemovable`). Utilization: L‑1.
 - **Energy** — `IOPSCopyPowerSourcesInfo` + `IOPSNotificationCreateRunLoopSource` (charge %, state,
@@ -355,8 +367,8 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
   < 0.3 %, zero growth in resident memory after the first minute.
 - Techniques: timer tolerance for wakeup coalescing; demand-driven collectors; reuse buffers for
   `sysctl`/`proc_listallpids` (grow-only scratch storage inside collector actors); per-process
-  sampling only while the Processes tab is visible; IOKit iterators created once and refreshed on
-  DiskArbitration events rather than re-matching every tick; label/snapshot assignment only on
+  sampling only while the Processes tab is visible; free-space queries throttled to 30 s; configd
+  queries only on interface-set changes or every 5 s; label/snapshot assignment only on
   change; `Canvas` charts that redraw once per tick and never animate.
 - Instruments runs (M10): Time Profiler, Allocations/Leaks, SwiftUI, Energy Log, System Trace
   (wakeups) for scenarios A–D in SPEC §36.
@@ -405,11 +417,10 @@ documented; *Private* = private framework/SPI.
 | Memory total | `sysctlbyname("hw.memsize")` | Yes | None | High | Once | — |
 | Memory used / wired / compressed / cached / free | `host_statistics64(HOST_VM_INFO64)` × `vm_kernel_page_size` | Yes | None | High (formula is a definition, §10) | Very low | — |
 | Swap used / total | `sysctlbyname("vm.swapusage")` → `xsw_usage` | Yes (`VM_SWAPUSAGE` in `sys/sysctl.h`) | None | High | Very low | — |
-| Memory pressure (transitions) | `DispatchSource.makeMemoryPressureSource` | Yes | None | High for transitions | Event-driven, ~0 | — |
-| Memory pressure (current level at launch) | `kern.memorystatus_vm_pressure_level` sysctl | **Undocumented** | None | Medium | Very low | `Not Available` until first transition — see L‑8 |
-| Disk list / identity / removable | DiskArbitration + IOKit `IOMedia` | Yes | None | High | Event-driven | — |
+| Memory pressure | `kern.memorystatus_vm_pressure_level` sysctl (polled) | **Undocumented** (approved, L‑8) | None | Medium-high | Very low | `Not Available` |
+| Disk list / identity / removable | IOKit `IOBlockStorageDriver` → `IOMedia`, parent characteristics | Yes | None | High | Low (re-matched per sample) | — |
 | Disk read/write bytes & throughput | IOKit `IOBlockStorageDriver` `Statistics` (`Bytes (Read/Write)`) deltas | Yes (keys in public `IOBlockStorageDriver.h`) | None | High | Low (1 property copy per disk per tick) | `Not Available` per disk |
-| Disk capacity / free | `URLResourceValues` volume keys (`volumeAvailableCapacityForImportantUsage`) | Yes | None (non-sandboxed) | High | Low; sample every 10–30 s | `statfs` |
+| Disk capacity / available | `IOMedia` `Size`; `URLResourceValues` `volumeAvailableCapacityForImportantUsage` of mounted descendant volumes | Yes | None (non-sandboxed) | High | Low; refreshed every 30 s | `volumeAvailableCapacity` |
 | Disk active time / utilization | — (`Total Time (Read/Write)` = summed per-I/O latency, not busy time) | n/a | — | **Not reliable** (L‑3) | — | `Not Available` |
 | Network per-interface RX/TX bytes & rates | `sysctl(NET_RT_IFLIST2)` → `if_msghdr2` / `if_data64` | Yes (BSD routing sysctl, public headers) | None | High (64-bit counters) | Low (one sysctl for all interfaces) | — |
 | Interface classification | `ifi_type`, `SCNetworkInterfaceCopyAll`, name prefix | Yes | None | Medium (VPN friendly name rarely obtainable) | Low; refresh on change | Generic `VPN / Tunnel` + BSD name |

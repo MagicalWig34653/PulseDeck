@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5D0A00000000000000000010 /* PulseDeckCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0A00000000000000000011 /* PulseDeckCore */; };
+		5D0A00000000000000000014 /* PulseDeckTelemetry in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0A00000000000000000015 /* PulseDeckTelemetry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +30,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5D0A00000000000000000010 /* PulseDeckCore in Frameworks */,
+				5D0A00000000000000000014 /* PulseDeckTelemetry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,6 +75,7 @@
 			name = PulseDeck;
 			packageProductDependencies = (
 				5D0A00000000000000000011 /* PulseDeckCore */,
+				5D0A00000000000000000015 /* PulseDeckTelemetry */,
 			);
 			productName = PulseDeck;
 			productReference = 5D0A00000000000000000001 /* PulseDeck.app */;
@@ -299,6 +302,10 @@
 		5D0A00000000000000000011 /* PulseDeckCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PulseDeckCore;
+		};
+		5D0A00000000000000000015 /* PulseDeckTelemetry */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PulseDeckTelemetry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

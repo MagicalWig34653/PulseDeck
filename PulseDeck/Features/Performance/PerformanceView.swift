@@ -17,7 +17,7 @@ struct PerformanceView: View {
                 ResourceListRow(category: category)
                     .tag(category)
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 230)
+            .navigationSplitViewColumnWidth(min: 240, ideal: 270)
         } detail: {
             ResourceDetailView(category: category)
         }

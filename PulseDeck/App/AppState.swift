@@ -21,6 +21,17 @@ final class AppState {
     /// Most recent snapshot from the engine, `nil` until the first sample arrives.
     private(set) var latestSnapshot: SystemSnapshot? = nil
 
+    /// Bounded chart history, appended once per snapshot. Stored outside observation and
+    /// exposed through `history`, so appending mutates the ring buffers in place instead of
+    /// copying them; `historyRevision` is what views actually observe.
+    @ObservationIgnored private var historyStorage = SystemHistory()
+    private(set) var historyRevision: UInt64 = 0
+
+    var history: SystemHistory {
+        _ = historyRevision
+        return historyStorage
+    }
+
     /// Text shown next to the menu bar icon, `nil` for icon only. Assigned only when it
     /// actually changes so the status item is not re-rendered every tick (SPEC §24).
     private(set) var menuBarLabelText: String? = nil
@@ -139,6 +150,8 @@ final class AppState {
     // MARK: - Snapshots
 
     private func receive(_ snapshot: SystemSnapshot) {
+        historyStorage.append(snapshot)
+        historyRevision &+= 1
         latestSnapshot = snapshot
         updateMenuBarLabel()
     }

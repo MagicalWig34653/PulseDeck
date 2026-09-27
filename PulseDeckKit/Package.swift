@@ -10,10 +10,22 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "PulseDeckCore", targets: ["PulseDeckCore"]),
+        .library(name: "PulseDeckTelemetry", targets: ["PulseDeckTelemetry"]),
     ],
     targets: [
         .target(name: "PulseDeckCore"),
+        // Darwin collectors (Mach, sysctl, IOKit, SystemConfiguration). Sources are compiled on
+        // macOS only; all calculations they rely on live in PulseDeckCore.
+        .target(
+            name: "PulseDeckTelemetry",
+            dependencies: ["PulseDeckCore"],
+            linkerSettings: [
+                .linkedFramework("IOKit", .when(platforms: [.macOS])),
+                .linkedFramework("SystemConfiguration", .when(platforms: [.macOS])),
+            ]
+        ),
         .testTarget(name: "PulseDeckCoreTests", dependencies: ["PulseDeckCore"]),
+        .testTarget(name: "PulseDeckTelemetryTests", dependencies: ["PulseDeckTelemetry", "PulseDeckCore"]),
     ],
     swiftLanguageModes: [.v6]
 )

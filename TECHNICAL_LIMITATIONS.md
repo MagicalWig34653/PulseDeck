@@ -10,7 +10,7 @@ inspected in the authoring environment; each item is to be re-checked on a Mac w
 is implemented. Anything below marked *needs on-device validation* is a known unknown, not a
 conclusion.
 
-Decisions requested from the product owner are marked **DECISION**.
+Decisions by the product owner are recorded under each item.
 
 ---
 
@@ -40,8 +40,10 @@ Decisions requested from the product owner are marked **DECISION**.
 - **Recommendation:** Do not use IOReport (private SPI). `IOAccelerator` `PerformanceStatistics` is
   widely used by monitoring tools and needs no privileges; it could be added as an **explicitly
   labelled, opt-in "undocumented source"** with runtime capability detection (key missing ⇒
-  `Not Available`). **DECISION** before Milestone 6: allow the undocumented IOKit keys (opt-in,
-  labelled) or keep strictly public (`Not Available`). Default in this plan: strictly public.
+  `Not Available`).
+- **Decision (approved by the product owner):** use `IOAccelerator` `PerformanceStatistics`, clearly
+  labelled as an undocumented source, with automatic fallback to `Not Available`. To be implemented in
+  Milestone 6. IOReport stays excluded.
 
 ## L‑2 · System, CPU/package and GPU power (watts)
 
@@ -68,8 +70,10 @@ Decisions requested from the product owner are marked **DECISION**.
   battery power is available (and then labelled "Battery").
 - **Undocumented/private alternatives:** yes (IOReport, SMC, `PowerTelemetryData`).
 - **Recommendation:** do not use IOReport or SMC in v1 (private/undocumented, model-specific, risk of
-  wrong values). **DECISION:** optionally evaluate `PowerTelemetryData.SystemPowerIn` as an opt-in
-  labelled *undocumented* source in Milestone 7; default is not to use it.
+  wrong values).
+- **Decision (approved by the product owner):** use `PowerTelemetryData.SystemPowerIn` (portables
+  only) as a clearly labelled undocumented source with fallback to `Not Available`. To be implemented
+  and validated in Milestone 7. IOReport and SMC stay excluded.
 
 ## L‑3 · Disk utilization / active time
 
@@ -163,10 +167,12 @@ Decisions requested from the product owner are marked **DECISION**.
   transition (which may never occur in a healthy system).
 - **Possible fallback:** show *Not Available* until a transition is received.
 - **Undocumented alternative:** the sysctl above (cheap, read-only, stable for many releases).
-- **Recommendation / DECISION:** use `kern.memorystatus_vm_pressure_level` as an explicitly
-  documented undocumented source for the initial level, with the dispatch source for transitions and
-  *Not Available* if the sysctl fails. Needs approval before Milestone 3; default without approval:
-  dispatch source only.
+- **Decision (approved, implemented in Milestone 3):** `MemoryMonitor` reads
+  `kern.memorystatus_vm_pressure_level` on every sample (one read-only sysctl). Verified in xnu
+  `kern_memorystatus_notify.c`: on macOS it needs no privilege and returns the dispatch level
+  (`NOTE_MEMORYSTATUS_PRESSURE_NORMAL/WARN/CRITICAL` = 1/2/4). Any other value or a failure shows
+  *Not Available*. The Memory page labels the value's source. Because the level is polled, the
+  dispatch source is not needed.
 
 ## L‑9 · Verification environment (process limitation, not a product limitation)
 
