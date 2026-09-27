@@ -139,8 +139,9 @@ universal Release app, packages the DMG and publishes the GitHub release:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Publishing a release from the GitHub UI also attaches a DMG. `0.x` versions are marked as
-pre-releases.
+Alternatively run the Release workflow manually on `main` with a version (e.g. `0.1.0`); it tags
+that commit and publishes the release. Publishing a release from the GitHub UI also attaches a
+DMG. `0.x` versions are marked as pre-releases.
 
 ## Privacy
 

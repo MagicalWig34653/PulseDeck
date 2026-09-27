@@ -1,19 +1,25 @@
 name: Release
 
-# Builds a DMG for every release. Pushing a tag `vX.Y.Z` creates the GitHub release
-# (with generated notes) and attaches the DMG; publishing a release in the UI attaches
-# the DMG to that release.
+# Builds a DMG for every release:
+# - pushing a tag `vX.Y.Z` creates the GitHub release (generated notes) with the DMG;
+# - publishing a release in the UI attaches the DMG to it;
+# - running the workflow manually on `main` with a version tags that commit and releases it.
 on:
   push:
     tags: ['v*']
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release from main, e.g. 0.1.0 (creates tag v<version>)
+        required: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  group: release-${{ inputs.version && format('v{0}', inputs.version) || github.event.release.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -24,12 +30,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          ref: ${{ github.event.release.tag_name || github.sha }}
 
       - name: Resolve version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          tag="${{ github.event.release.tag_name || github.ref_name }}"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "$GITHUB_REF" == refs/heads/main ]] || { echo "::error::Manual releases must run on main"; exit 1; }
+            [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::Invalid version '$INPUT_VERSION'"; exit 1; }
+            tag="v$INPUT_VERSION"
+          else
+            tag="${{ github.event.release.tag_name || github.ref_name }}"
+          fi
           version="${tag#v}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -86,10 +100,16 @@ jobs:
             prerelease=()
             # 0.x releases are pre-releases until telemetry collectors ship.
             [[ "$VERSION" == 0.* || "$VERSION" == *-* ]] && prerelease=(--prerelease)
+            # Tag pushes must reference the existing tag; manual runs create it at this commit.
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+              target=(--target "$GITHUB_SHA")
+            else
+              target=(--verify-tag)
+            fi
             gh release create "$TAG" "$DMG" "$DMG.sha256" \
               --title "PulseDeck $VERSION" \
               --generate-notes \
-              --verify-tag \
+              "${target[@]}" \
               "${prerelease[@]}"
           fi
 
