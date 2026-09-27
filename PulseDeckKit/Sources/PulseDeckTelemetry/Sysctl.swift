@@ -24,10 +24,13 @@ enum Sysctl {
     }
 
     /// Reads a C struct value of exactly `MemoryLayout<T>.size` bytes.
-    static func structure<T>(_ name: String, initial: T) -> T? {
+    static func structure<T: BitwiseCopyable>(_ name: String, initial: T) -> T? {
         var value = initial
         var size = MemoryLayout<T>.size
-        guard sysctlbyname(name, &value, &size, nil, 0) == 0, size == MemoryLayout<T>.size else {
+        let result = withUnsafeMutableBytes(of: &value) { bytes in
+            sysctlbyname(name, bytes.baseAddress, &size, nil, 0)
+        }
+        guard result == 0, size == MemoryLayout<T>.size else {
             return nil
         }
         return value

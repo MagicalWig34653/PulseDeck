@@ -229,11 +229,13 @@ public actor DiskMonitor: TelemetryProvider {
     private static func mountedVolumes() -> [(device: String, mountPoint: String)] {
         let count = getfsstat(nil, 0, MNT_NOWAIT)
         guard count > 0 else { return [] }
-        var entries = [statfs](repeating: statfs(), count: Int(count))
-        let filled = getfsstat(&entries, Int32(MemoryLayout<statfs>.stride * entries.count), MNT_NOWAIT)
-        guard filled > 0 else { return [] }
+        // `statfs` is a plain C struct, so the kernel can fill uninitialized storage directly.
+        let entries = Array<statfs>(unsafeUninitializedCapacity: Int(count)) { buffer, initializedCount in
+            let filled = getfsstat(buffer.baseAddress, Int32(MemoryLayout<statfs>.stride * buffer.count), MNT_NOWAIT)
+            initializedCount = min(max(Int(filled), 0), buffer.count)
+        }
         let devicePrefix = "/dev/"
-        return entries.prefix(Int(filled)).compactMap { entry in
+        return entries.compactMap { entry in
             let from = withUnsafeBytes(of: entry.f_mntfromname) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
             let on = withUnsafeBytes(of: entry.f_mntonname) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
             guard from.hasPrefix(devicePrefix) else { return nil }
