@@ -385,19 +385,21 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
 
 ## 15. Milestone plan (SPEC §39)
 
-| # | Milestone | Deliverables | Exit criteria |
-|---|---|---|---|
-| 1 | Foundation | Xcode project, package, models, `MetricState`, `TelemetryProvider`, `MonitoringEngine`, `SamplingPolicy`, `RingBuffer`, counter/rate math, lifecycle, menu bar, navigation (top bar/sidebar), settings for navigation/menu-bar metric/window behaviour | Builds; core tests pass; window close keeps app in menu bar; reopen/quit work; all metrics show *Not Available* (no fake data) |
-| 2 | CPU | `CPUMonitor`, `HistoryStore`, `TimeSeriesChart`, hover, logical-processor grid, formatting | tests for tick math, hover lookup, formatting |
-| 3 | Memory | `MemoryMonitor`, pressure source, charts | documented Used formula |
-| 4 | Network | `NetworkMonitor`, classification, VPN/tunnel, hot-plug | per-interface charts, counter-reset tests |
-| 5 | Disk | `DiskMonitor`, DiskArbitration, capacity mapping | hot-plug safe, rate tests |
-| 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) |
-| 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown |
-| 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests |
-| 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified |
-| 10 | Optimization | Instruments A–D, fixes | budgets met, no growth |
-| 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass |
+Current status and hand-off notes for the next session: [`CLAUDE.md`](CLAUDE.md).
+
+| # | Milestone | Deliverables | Exit criteria | Status |
+|---|---|---|---|---|
+| 1 | Foundation | Xcode project, package, models, `MetricState`, `TelemetryProvider`, `MonitoringEngine`, `SamplingPolicy`, `RingBuffer`, counter/rate math, lifecycle, menu bar, navigation (top bar/sidebar), settings for navigation/menu-bar metric/window behaviour | Builds; core tests pass; window close keeps app in menu bar; reopen/quit work; all metrics show *Not Available* (no fake data) | ✅ v0.1.0 |
+| 2 | CPU | `CPUMonitor`, `SystemHistory`, `TimeSeriesChart`, hover, logical-processor grid, formatting | tests for tick math, hover lookup, formatting | ✅ v0.2.0 |
+| 3 | Memory | `MemoryMonitor`, pressure source, charts | documented Used formula | ✅ v0.2.0 |
+| 4 | Network | `NetworkMonitor`, classification, VPN/tunnel, hot-plug | per-interface charts, counter-reset tests | ✅ v0.2.0 (IP addresses v0.3.0) |
+| 5 | Disk | `DiskMonitor`, IORegistry capacity mapping | hot-plug safe, rate tests | ✅ v0.2.0 |
+| 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) | next |
+| 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown | open |
+| 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests | open |
+| 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | partly (adaptive sampling, menu bar metric done) |
+| 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | open |
+| 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | open |
 
 ---
 
