@@ -1,5 +1,6 @@
 import AppKit
 import PulseDeckCore
+import PulseDeckTelemetry
 
 /// Application lifecycle (SPEC §25, §27): owns the monitoring engine and app state, keeps the
 /// app alive in the menu bar when the window closes, switches the Dock presence, forwards
@@ -9,10 +10,9 @@ final class AppLifecycleController: NSObject, NSApplicationDelegate {
     let appState: AppState
 
     override init() {
-        // Milestone 1 registers no collectors: every metric is reported as
-        // `.unavailable(.notImplemented)` ("Not Available"), never as a fabricated value.
-        // Darwin collectors are added to `TelemetryProviders` from Milestone 2 onwards.
-        let engine = MonitoringEngine(providers: .none)
+        // CPU, memory, network and disk collectors. Domains without a collector yet (GPU,
+        // energy, processes) are reported as "Not Available", never as fabricated values.
+        let engine = MonitoringEngine(providers: DarwinTelemetry.makeProviders())
         appState = AppState(engine: engine)
         super.init()
         appState.onMainWindowOpenChanged = { isOpen in

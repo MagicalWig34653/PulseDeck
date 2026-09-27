@@ -13,6 +13,7 @@ extension UnavailableReason {
         case .awaitingBaseline: "Collecting the first sample."
         case .invalidDelta: "No valid measurement for this interval."
         case .transientFailure: "The system did not return a value."
+        case .notApplicable: "Not applicable to this device."
         }
     }
 
