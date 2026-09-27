@@ -224,3 +224,20 @@ struct SystemHistoryTests {
         #expect(history.network["en0"]?.latest?.values == [10, nil])
     }
 }
+
+@Suite("Chart scale")
+struct ChartScaleTests {
+    @Test func roundsUpToNiceSteps() {
+        #expect(ChartScale.niceUpperBound(for: 0.7, minimum: 0) == 1)
+        #expect(ChartScale.niceUpperBound(for: 1.3, minimum: 0) == 2)
+        #expect(ChartScale.niceUpperBound(for: 3_100, minimum: 0) == 5_000)
+        #expect(ChartScale.niceUpperBound(for: 5_000, minimum: 0) == 5_000)
+        #expect(ChartScale.niceUpperBound(for: 7_200_000, minimum: 0) == 10_000_000)
+    }
+
+    @Test func respectsMinimumAndBadInput() {
+        #expect(ChartScale.niceUpperBound(for: 10, minimum: 100_000) == 100_000)
+        #expect(ChartScale.niceUpperBound(for: 0, minimum: 0) == 1)
+        #expect(ChartScale.niceUpperBound(for: .nan, minimum: 1_000) == 1_000)
+    }
+}

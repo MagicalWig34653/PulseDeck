@@ -19,10 +19,9 @@
 ---
 
 > [!IMPORTANT]
-> **Early development — Milestone 1 (Foundation).** The app shell, menu bar item, navigation,
-> monitoring engine and sampling policy are in place, but **no telemetry collectors ship yet**.
-> Every metric therefore shows **Not Available** — by design, PulseDeck never displays invented
-> or placeholder values. CPU monitoring arrives in Milestone 2.
+> **Early development.** CPU, memory, network and disk monitoring are live (Milestones 2–5), with
+> 60-second charts and hover inspection. GPU, energy and the process table follow in Milestones 6–8
+> and show **Not Available** until then. PulseDeck never displays invented or placeholder values.
 
 ## Screenshots
 
@@ -42,21 +41,29 @@ Screenshots are captured automatically from the real app on a macOS 26 runner by
 
 ## Features
 
-Implemented (Milestone 1):
+Implemented:
 
+- **CPU** — total, user, system and idle utilization; per-logical-processor charts; model name,
+  logical/physical core counts and performance/efficiency clusters.
+- **Memory** — used (App Memory + Wired + Compressed), available, wired, compressed, cached files,
+  free, swap and memory pressure, with a composition bar.
+- **Network** — every interface individually (Ethernet, Wi‑Fi, Thunderbolt, bridges, VPN/tunnels),
+  download/upload rates from 64-bit kernel counters, totals, and hot-plug/VPN reconnect handling.
+- **Disks** — every storage device with read/write throughput, cumulative transfer, capacity and
+  available space (APFS containers counted once).
+- **60-second history charts** with hover inspection: a vertical rule, highlighted points, the
+  sample's time and all series values. Hovering only reads recorded history.
 - **Menu bar app** — keeps running in the menu bar when the window closes; the Dock icon appears
-  only while the main window is open. Compact overview popover with *Open PulseDeck*, *Settings*
-  and *Quit*.
+  only while the main window is open. Compact overview popover and an optional live metric in the
+  menu bar (CPU, memory, network download/upload of the primary interface).
 - **Two navigation styles** — Liquid Glass top bar (default) or sidebar, persisted in Settings.
 - **Energy-aware sampling** — 1 Hz while the window is visible; every 3 s when it is closed,
-  minimised or fully covered; stopped during sleep. Timer tolerance allows wakeup coalescing, and
-  GPU, energy and per-process sampling only run while something on screen needs them.
-- **Honest telemetry model** — every metric is typed as available, unavailable (with a reason) or
-  not sampled. Sleep/wake discards all counter baselines so no bogus spikes appear.
+  minimised or fully covered; stopped during sleep, with all counter baselines discarded on wake so
+  no bogus spikes appear.
 
-Planned, following the milestones in [`SPEC.md`](SPEC.md) §39: CPU (total and per-core), memory,
-per-interface network including VPN/tunnels, disks, GPU, energy, a process table with actions,
-60-second history charts with hover inspection, a live menu bar metric, and Launch at Login.
+Planned, following [`SPEC.md`](SPEC.md) §39: GPU (Metal identification and utilization), energy
+(battery and power), a process table with actions, Instruments profiling, accessibility polish and
+Launch at Login.
 
 Some requested metrics have no reliable public macOS API (for example system-wide GPU utilization,
 CPU/GPU package power and disk active time). These will be shown as *Not Available*; see

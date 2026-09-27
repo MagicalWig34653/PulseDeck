@@ -9,7 +9,8 @@ public actor MemoryMonitor: TelemetryProvider {
     private let pageSize: UInt64?
 
     public init() {
-        host = mach_host_self()
+        let host = mach_host_self()
+        self.host = host
         physicalTotal = Sysctl.integer("hw.memsize", as: UInt64.self)
         var size: vm_size_t = 0
         // VM statistics count pages of the kernel's page size (16 KiB on Apple silicon).

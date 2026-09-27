@@ -234,8 +234,8 @@ public actor DiskMonitor: TelemetryProvider {
         guard filled > 0 else { return [] }
         let devicePrefix = "/dev/"
         return entries.prefix(Int(filled)).compactMap { entry in
-            let from = withUnsafeBytes(of: entry.f_mntfromname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-            let on = withUnsafeBytes(of: entry.f_mntonname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+            let from = withUnsafeBytes(of: entry.f_mntfromname) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
+            let on = withUnsafeBytes(of: entry.f_mntonname) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
             guard from.hasPrefix(devicePrefix) else { return nil }
             return (String(from.dropFirst(devicePrefix.count)), on)
         }

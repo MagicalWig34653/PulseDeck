@@ -1,8 +1,7 @@
 import PulseDeckCore
 import SwiftUI
 
-/// Detail page of one performance category. Milestone 1 shows the metric's capability state;
-/// charts and statistics are added per category in later milestones.
+/// Detail page of one performance category.
 struct ResourceDetailView: View {
     @Environment(AppState.self) private var appState
     let category: ResourceCategory
@@ -12,6 +11,26 @@ struct ResourceDetailView: View {
     }
 
     var body: some View {
+        Group {
+            switch category {
+            case .cpu:
+                CPUPerformanceView()
+            case .memory:
+                MemoryPerformanceView()
+            case .disks:
+                DiskPerformanceView()
+            case .network:
+                NetworkPerformanceView()
+            case .gpu, .energy:
+                capabilityState
+            }
+        }
+        .navigationTitle(Text(category.title))
+    }
+
+    /// Categories without a collector yet show their capability state.
+    @ViewBuilder
+    private var capabilityState: some View {
         Group {
             switch state {
             case .unavailable(let reason)? where !reason.isTransient:
@@ -37,6 +56,5 @@ struct ResourceDetailView: View {
                 .padding(24)
             }
         }
-        .navigationTitle(Text(category.title))
     }
 }
