@@ -36,6 +36,13 @@ jobs:
             SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             | tee xcodebuild-build.log
 
+      - name: Verify app icon was compiled
+        run: |
+          resources=DerivedData/Build/Products/Debug/PulseDeck.app/Contents/Resources
+          ls -la "$resources"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$resources/../Info.plist"
+          test -n "$(find "$resources" -name '*.icns')"
+
       - name: Test via Xcode scheme
         run: |
           set -o pipefail

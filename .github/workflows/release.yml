@@ -1,0 +1,104 @@
+name: Release
+
+# Builds a DMG for every release. Pushing a tag `vX.Y.Z` creates the GitHub release
+# (with generated notes) and attaches the DMG; publishing a release in the UI attaches
+# the DMG to that release.
+on:
+  push:
+    tags: ['v*']
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  dmg:
+    name: Build DMG
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.release.tag_name || github.ref_name }}"
+          version="${tag#v}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dmg=PulseDeck-$version.dmg" >> "$GITHUB_OUTPUT"
+          xcodebuild -version
+
+      - name: Test
+        working-directory: PulseDeckKit
+        run: swift test
+
+      - name: Build app (Release, universal)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PulseDeck.xcodeproj \
+            -scheme PulseDeck \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            MARKETING_VERSION='${{ steps.version.outputs.version }}' \
+            CURRENT_PROJECT_VERSION='${{ github.run_number }}' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | tee build/xcodebuild-release.log
+
+      - name: Verify app bundle
+        run: |
+          app=build/DerivedData/Build/Products/Release/PulseDeck.app
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist"
+          lipo -archs "$app/Contents/MacOS/PulseDeck"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          ls "$app/Contents/Resources"
+
+      - name: Build DMG
+        run: |
+          scripts/build-dmg.sh \
+            build/DerivedData/Build/Products/Release/PulseDeck.app \
+            '${{ steps.version.outputs.version }}' \
+            'build/${{ steps.version.outputs.dmg }}'
+          cd build && shasum -a 256 '${{ steps.version.outputs.dmg }}' | tee '${{ steps.version.outputs.dmg }}.sha256'
+
+      - name: Publish to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DMG: build/${{ steps.version.outputs.dmg }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DMG" "$DMG.sha256" --clobber
+          else
+            prerelease=()
+            # 0.x releases are pre-releases until telemetry collectors ship.
+            [[ "$VERSION" == 0.* || "$VERSION" == *-* ]] && prerelease=(--prerelease)
+            gh release create "$TAG" "$DMG" "$DMG.sha256" \
+              --title "PulseDeck $VERSION" \
+              --generate-notes \
+              --verify-tag \
+              "${prerelease[@]}"
+          fi
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.version.outputs.version }}
+          path: |
+            build/*.dmg
+            build/*.sha256
+            build/xcodebuild-release.log

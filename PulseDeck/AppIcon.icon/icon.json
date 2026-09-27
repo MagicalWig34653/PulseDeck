@@ -1,0 +1,69 @@
+{
+  "color-space-for-untagged-svg-colors" : "srgb",
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.25098,0.35294,0.96078,1.00000",
+      "srgb:0.03529,0.63922,0.70588,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 1
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "Pulse.svg",
+          "name" : "Pulse"
+        }
+      ],
+      "name" : "Pulse",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.2
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "FrontCard.svg",
+          "name" : "Front Card",
+          "opacity" : 0.5
+        },
+        {
+          "glass" : true,
+          "image-name" : "BackCard.svg",
+          "name" : "Back Card",
+          "opacity" : 0.3
+        }
+      ],
+      "name" : "Deck",
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.4
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}
