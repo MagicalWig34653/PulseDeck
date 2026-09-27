@@ -12,11 +12,6 @@ let canvas = NSSize(width: 660, height: 400)
 let appIconCenter = NSPoint(x: 170, y: 185)
 let applicationsCenter = NSPoint(x: 490, y: 185)
 
-/// Converts a top-left based Finder coordinate to AppKit's bottom-left drawing space.
-func flipped(_ point: NSPoint) -> NSPoint {
-    NSPoint(x: point.x, y: canvas.height - point.y)
-}
-
 let brandTop = NSColor(srgbRed: 0.251, green: 0.353, blue: 0.961, alpha: 1)
 let brandBottom = NSColor(srgbRed: 0.035, green: 0.639, blue: 0.706, alpha: 1)
 
@@ -28,41 +23,37 @@ func drawBackground() {
     )
     backdrop?.draw(in: NSRect(origin: .zero, size: canvas), angle: -90)
 
-    // Faint pulse waveform across the window, echoing the app icon.
-    let pulse = NSBezierPath()
-    let baseline = canvas.height - 185
-    pulse.move(to: NSPoint(x: -10, y: baseline))
-    pulse.line(to: NSPoint(x: 275, y: baseline))
-    pulse.line(to: NSPoint(x: 300, y: baseline + 46))
-    pulse.line(to: NSPoint(x: 332, y: baseline - 58))
-    pulse.line(to: NSPoint(x: 360, y: baseline + 26))
-    pulse.line(to: NSPoint(x: 378, y: baseline))
-    pulse.line(to: NSPoint(x: canvas.width + 10, y: baseline))
-    pulse.lineWidth = 3
-    pulse.lineCapStyle = .round
-    pulse.lineJoinStyle = .round
-    brandTop.withAlphaComponent(0.18).setStroke()
-    pulse.stroke()
+    let baseline = canvas.height - appIconCenter.y
+    let accent = NSColor(srgbRed: 0.145, green: 0.494, blue: 0.835, alpha: 0.9)
 
-    // Arrow from the app to the Applications folder.
-    let start = flipped(NSPoint(x: appIconCenter.x + 92, y: appIconCenter.y))
-    let end = flipped(NSPoint(x: applicationsCenter.x - 92, y: applicationsCenter.y))
-    let shaft = NSBezierPath()
-    shaft.move(to: start)
-    shaft.line(to: end)
-    shaft.lineWidth = 5
-    shaft.lineCapStyle = .round
-    let head = NSBezierPath()
-    head.move(to: NSPoint(x: end.x - 16, y: end.y + 14))
-    head.line(to: end)
-    head.line(to: NSPoint(x: end.x - 16, y: end.y - 14))
-    head.lineWidth = 5
-    head.lineCapStyle = .round
-    head.lineJoinStyle = .round
-    let arrowColor = NSColor(srgbRed: 0.145, green: 0.494, blue: 0.835, alpha: 0.85)
-    arrowColor.setStroke()
-    shaft.stroke()
-    head.stroke()
+    // Faint baseline behind the icons, echoing the app icon's pulse line.
+    let track = NSBezierPath()
+    track.move(to: NSPoint(x: 0, y: baseline))
+    track.line(to: NSPoint(x: canvas.width, y: baseline))
+    track.lineWidth = 2
+    brandTop.withAlphaComponent(0.12).setStroke()
+    track.stroke()
+
+    // The arrow from the app to Applications is itself a heartbeat: flat, one beat, flat,
+    // then an arrowhead.
+    let startX = appIconCenter.x + 92
+    let endX = applicationsCenter.x - 92
+    let arrow = NSBezierPath()
+    arrow.move(to: NSPoint(x: startX, y: baseline))
+    arrow.line(to: NSPoint(x: startX + 34, y: baseline))
+    arrow.line(to: NSPoint(x: startX + 50, y: baseline + 30))
+    arrow.line(to: NSPoint(x: startX + 70, y: baseline - 36))
+    arrow.line(to: NSPoint(x: startX + 86, y: baseline + 14))
+    arrow.line(to: NSPoint(x: startX + 96, y: baseline))
+    arrow.line(to: NSPoint(x: endX, y: baseline))
+    arrow.move(to: NSPoint(x: endX - 14, y: baseline + 13))
+    arrow.line(to: NSPoint(x: endX, y: baseline))
+    arrow.line(to: NSPoint(x: endX - 14, y: baseline - 13))
+    arrow.lineWidth = 4.5
+    arrow.lineCapStyle = .round
+    arrow.lineJoinStyle = .round
+    accent.setStroke()
+    arrow.stroke()
 
     // Title and instruction.
     let paragraph = NSMutableParagraphStyle()

@@ -39,20 +39,36 @@ jobs:
       - name: Capture main window
         run: |
           mkdir -p "$OUT"
-          capture() {
-            local name="$1"; shift
-            "$APP/Contents/MacOS/PulseDeck" "$@" &
-            local pid=$!
-            sleep 8
-            swift scripts/capture-window.swift PulseDeck "$OUT/$name.png" 600 2000
-            kill "$pid"; wait "$pid" 2>/dev/null || true
-            sleep 2
+          # Apple Events may wait for an Automation consent prompt nobody can answer.
+          with_timeout() { perl -e 'alarm 20; exec @ARGV' "$@"; }
+          set_dark_mode() {
+            # AppKit reads the appearance from the global domain at launch, not from the
+            # argument domain, so the runner's global preference is switched instead.
+            if [[ "$1" == true ]]; then
+              defaults write -g AppleInterfaceStyle Dark
+            else
+              defaults delete -g AppleInterfaceStyle 2>/dev/null || true
+            fi
+            with_timeout osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $1" || true
           }
-          # Preferences are passed in the argument domain, so the runner's defaults stay untouched.
-          capture performance-light -navigationPresentation topBar
-          capture performance-dark -navigationPresentation topBar -AppleInterfaceStyle Dark
-          capture sidebar-light -navigationPresentation sidebar
-          capture sidebar-dark -navigationPresentation sidebar -AppleInterfaceStyle Dark
+          capture() {
+            local name="$1" dark="$2"; shift 2
+            set_dark_mode "$dark"
+            # `open` launches like Finder does, so the app becomes active and its window key.
+            open -n "$APP" --args "$@"
+            sleep 8
+            with_timeout osascript -e 'tell application "PulseDeck" to activate' || true
+            sleep 2
+            swift scripts/capture-window.swift PulseDeck "$OUT/$name.png" 600 2000
+            pkill -x PulseDeck || true
+            sleep 3
+          }
+          # Preferences are passed in the argument domain, so the runner's app defaults stay untouched.
+          capture performance-light false -navigationPresentation topBar
+          capture performance-dark true -navigationPresentation topBar
+          capture sidebar-light false -navigationPresentation sidebar
+          capture sidebar-dark true -navigationPresentation sidebar
+          set_dark_mode false
 
       - name: Export rendered app icon
         run: |
