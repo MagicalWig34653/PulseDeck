@@ -9,10 +9,11 @@ struct MemoryPerformanceView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 20) {
                 DetailHeader(
-                    title: String(localized: "Memory"),
-                    subtitle: state?.value.map { Format.memory($0.physicalTotal) }
+                    title: state?.value.map { String(localized: "\(Format.memory($0.physicalTotal)) Memory") } ?? String(localized: "Memory"),
+                    subtitle: state?.value?.pressure.value.map { String(localized: "Memory pressure: \($0.label)") },
+                    value: state?.flatMap { .available(Format.memory($0.used)) }
                 )
 
                 TimeSeriesChart(
@@ -25,39 +26,47 @@ struct MemoryPerformanceView: View {
                     format: Format.precisePercent,
                     accessibilityLabel: Text("Memory used")
                 )
-                .frame(height: 220)
+                .frame(height: 200)
 
-                if let memory = state?.value {
-                    MemoryCompositionBar(memory: memory)
+                DetailSection(title: "Usage") {
+                    StatisticView(label: "Used", value: state?.flatMap { .available("\(Format.memory($0.used)) (\(Format.percent($0.usedFraction)))") },
+                                  help: "App Memory + Wired + Compressed.")
+                    StatisticView(label: "Available", value: state?.flatMap { .available(Format.memory($0.available)) })
+                    StatisticView(label: "Free", value: state?.flatMap { .available(Format.memory($0.free)) })
+                    StatisticView(label: "Swap Used", value: state?.flatMap { memory in
+                        memory.swap.map { swap in
+                            swap.total == 0 ? String(localized: "Not in use") : "\(Format.memory(swap.used)) / \(Format.memory(swap.total))"
+                        }
+                    })
+                    StatisticView(
+                        label: "Memory Pressure",
+                        value: state?.flatMap { memory in memory.pressure.map(\.label) },
+                        help: "Read from the kernel's memory pressure level (undocumented sysctl kern.memorystatus_vm_pressure_level)."
+                    )
                 }
 
-                statistics
-
-                Text("Used memory = App Memory + Wired + Compressed. Cached files can be reclaimed by the system when needed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let memory = state?.value {
+                            MemoryCompositionBar(memory: memory)
+                        }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 16, alignment: .topLeading)],
+                                  alignment: .leading, spacing: 14) {
+                            StatisticView(label: "App Memory", value: state?.flatMap { .available(Format.memory($0.appMemory)) })
+                            StatisticView(label: "Wired", value: state?.flatMap { .available(Format.memory($0.wired)) },
+                                          help: "Memory the kernel keeps resident; it cannot be compressed or paged out.")
+                            StatisticView(label: "Compressed", value: state?.flatMap { .available(Format.memory($0.compressed)) })
+                            StatisticView(label: "Cached Files", value: state?.flatMap { .available(Format.memory($0.cachedFiles)) },
+                                          help: "File data kept in memory; reclaimed by the system when needed.")
+                        }
+                    }
+                    .padding(8)
+                } label: {
+                    Text("Composition")
+                        .font(.headline)
+                }
             }
-            .padding(24)
-        }
-    }
-
-    private var statistics: some View {
-        StatisticsGrid {
-            StatisticView(label: "Used", value: state?.flatMap { .available("\(Format.memory($0.used)) (\(Format.percent($0.usedFraction)))") })
-            StatisticView(label: "Available", value: state?.flatMap { .available(Format.memory($0.available)) })
-            StatisticView(label: "App Memory", value: state?.flatMap { .available(Format.memory($0.appMemory)) })
-            StatisticView(label: "Wired", value: state?.flatMap { .available(Format.memory($0.wired)) })
-            StatisticView(label: "Compressed", value: state?.flatMap { .available(Format.memory($0.compressed)) })
-            StatisticView(label: "Cached Files", value: state?.flatMap { .available(Format.memory($0.cachedFiles)) })
-            StatisticView(label: "Free", value: state?.flatMap { .available(Format.memory($0.free)) })
-            StatisticView(label: "Swap Used", value: state?.flatMap { memory in
-                memory.swap.map { "\(Format.memory($0.used)) / \(Format.memory($0.total))" }
-            })
-            StatisticView(
-                label: "Memory Pressure",
-                value: state?.flatMap { memory in memory.pressure.map(\.label) },
-                help: "Read from the kernel's memory pressure level (undocumented sysctl kern.memorystatus_vm_pressure_level)."
-            )
+            .padding(20)
         }
     }
 }
@@ -87,9 +96,9 @@ private struct MemoryCompositionBar: View {
                     Spacer(minLength: 0)
                 }
             }
-            .frame(height: 14)
-            .background(.background.secondary, in: .rect(cornerRadius: 4))
-            .clipShape(.rect(cornerRadius: 4))
+            .frame(height: 12)
+            .background(.quaternary, in: .capsule)
+            .clipShape(.capsule)
 
             HStack(spacing: 14) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in

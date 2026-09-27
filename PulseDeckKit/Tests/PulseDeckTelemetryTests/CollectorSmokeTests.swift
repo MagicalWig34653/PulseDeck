@@ -48,9 +48,10 @@ struct CollectorSmokeTests {
                   "tx", String(describing: interface.sentBytesPerSecond.value),
                   "totals", interface.totalBytesReceived, interface.totalBytesSent)
         }
-        print("Primary interface:", network.primaryInterfaceID ?? "none")
+        print("Primary interface:", network.primaryInterfaceID ?? "none", "addresses", network.primaryInterface?.addresses ?? [])
         let loopback = try #require(network.interfaces.first { $0.id == "lo0" })
         #expect(loopback.kind == .loopback)
+        #expect(loopback.addresses.contains("127.0.0.1"))
         #expect(loopback.receivedBytesPerSecond.value != nil)
         #expect(Set(network.interfaces.map(\.id)).count == network.interfaces.count)
     }

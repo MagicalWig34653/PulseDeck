@@ -24,8 +24,12 @@ struct CPUPerformanceView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                DetailHeader(title: String(localized: "CPU"), subtitle: state?.value?.info.modelName)
+            VStack(alignment: .leading, spacing: 20) {
+                DetailHeader(
+                    title: state?.value?.info.modelName ?? String(localized: "Processor"),
+                    subtitle: state?.value.map { Self.topologyDescription($0.info) },
+                    value: state?.flatMap { .available(Format.percent($0.total)) }
+                )
 
                 Picker("Chart", selection: $mode) {
                     ForEach(Mode.allCases) { mode in
@@ -45,15 +49,47 @@ struct CPUPerformanceView: View {
                         format: Format.precisePercent,
                         accessibilityLabel: Text("CPU utilization")
                     )
-                    .frame(height: 260)
+                    .frame(height: 240)
                 case .logicalProcessors:
                     LogicalProcessorGrid(history: appState.history.cpuCores)
                 }
 
-                statistics
+                DetailSection(title: "Utilization") {
+                    StatisticView(label: "Total", value: state?.flatMap { .available(Format.percent($0.total)) })
+                    StatisticView(label: "User", value: state?.flatMap { .available(Format.percent($0.user)) },
+                                  help: "Time spent running apps and other user processes (including low-priority “nice” time).")
+                    StatisticView(label: "System", value: state?.flatMap { .available(Format.percent($0.system)) },
+                                  help: "Time spent in the macOS kernel.")
+                    StatisticView(label: "Idle", value: state?.flatMap { .available(Format.percent($0.idle)) })
+                }
+
+                DetailSection(title: "Processor") {
+                    StatisticView(label: "Logical processors", value: state?.flatMap { .available("\($0.info.logicalProcessorCount)") })
+                    StatisticView(label: "Physical cores", value: state?.flatMap { cpu in
+                        cpu.info.physicalCoreCount.map { MetricState.available("\($0)") } ?? .unavailable(.unsupportedHardware)
+                    })
+                    ForEach(state?.value?.info.performanceLevels ?? [], id: \.name) { level in
+                        StatisticView(label: "\(level.name) cores", value: .available("\(level.physicalCoreCount)"))
+                    }
+                }
             }
-            .padding(24)
+            .padding(20)
         }
+    }
+
+    /// "10 cores (4 Performance + 6 Efficiency) · 10 logical processors".
+    private static func topologyDescription(_ info: CPUInfo) -> String {
+        var parts: [String] = []
+        if let physical = info.physicalCoreCount {
+            var cores = String(localized: "\(physical) cores")
+            if info.performanceLevels.count > 1 {
+                let clusters = info.performanceLevels.map { "\($0.physicalCoreCount) \($0.name)" }.joined(separator: " + ")
+                cores += " (\(clusters))"
+            }
+            parts.append(cores)
+        }
+        parts.append(String(localized: "\(info.logicalProcessorCount) logical processors"))
+        return parts.joined(separator: " · ")
     }
 
     /// Total is drawn filled; system time is drawn as a line; user time appears on hover.
@@ -67,22 +103,6 @@ struct CPUPerformanceView: View {
             ChartSeries(label: "User", color: .green, value: { $0.values[0] }, isDrawn: false),
         ]
     }
-
-    private var statistics: some View {
-        StatisticsGrid {
-            StatisticView(label: "Utilization", value: state?.flatMap { .available(Format.percent($0.total)) })
-            StatisticView(label: "User", value: state?.flatMap { .available(Format.percent($0.user)) })
-            StatisticView(label: "System", value: state?.flatMap { .available(Format.percent($0.system)) })
-            StatisticView(label: "Idle", value: state?.flatMap { .available(Format.percent($0.idle)) })
-            StatisticView(label: "Logical processors", value: state?.flatMap { .available("\($0.info.logicalProcessorCount)") })
-            StatisticView(label: "Physical cores", value: state?.flatMap { cpu in
-                cpu.info.physicalCoreCount.map { MetricState.available("\($0)") } ?? .unavailable(.unsupportedHardware)
-            })
-            ForEach(state?.value?.info.performanceLevels ?? [], id: \.name) { level in
-                StatisticView(label: "\(level.name) cores", value: .available("\(level.physicalCoreCount)"))
-            }
-        }
-    }
 }
 
 /// One small chart per logical processor (SPEC §13 "Logical Processors" mode), each with hover.
@@ -95,21 +115,27 @@ private struct LogicalProcessorGrid: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 120)
         } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
                 ForEach(0..<history.seriesCount, id: \.self) { core in
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("CPU \(core)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("CPU \(core)")
+                            Spacer()
+                            Text(verbatim: history.latest.flatMap { $0.values[core] }.map(Format.percent) ?? AppState.placeholder)
+                                .monospacedDigit()
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         TimeSeriesChart(
                             history: history,
                             series: [ChartSeries(label: "CPU \(core)", color: .blue, value: { $0.values[core] })],
                             yAxis: .fraction,
                             format: Format.precisePercent,
                             accessibilityLabel: Text("CPU \(core) utilization"),
-                            isCompact: true
+                            isCompact: true,
+                            isFramed: true
                         )
-                        .frame(height: 70)
+                        .frame(height: 72)
                     }
                 }
             }
