@@ -34,7 +34,9 @@ struct MemoryPerformanceView: View {
                     StatisticView(label: "Available", value: state?.flatMap { .available(Format.memory($0.available)) })
                     StatisticView(label: "Free", value: state?.flatMap { .available(Format.memory($0.free)) })
                     StatisticView(label: "Swap Used", value: state?.flatMap { memory in
-                        memory.swap.map { "\(Format.memory($0.used)) / \(Format.memory($0.total))" }
+                        memory.swap.map { swap in
+                            swap.total == 0 ? String(localized: "Not in use") : "\(Format.memory(swap.used)) / \(Format.memory(swap.total))"
+                        }
                     })
                     StatisticView(
                         label: "Memory Pressure",

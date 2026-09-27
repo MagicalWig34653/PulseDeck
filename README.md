@@ -57,7 +57,9 @@ Implemented:
 - **Memory** — used (App Memory + Wired + Compressed), available, wired, compressed, cached files,
   free, swap and memory pressure, with a composition bar.
 - **Network** — every interface individually (Ethernet, Wi‑Fi, Thunderbolt, bridges, VPN/tunnels),
-  download/upload rates from 64-bit kernel counters, totals, and hot-plug/VPN reconnect handling.
+  download/upload rates from 64-bit kernel counters, totals, local IPv4/IPv6 addresses, and
+  hot-plug/VPN reconnect handling. Interfaces that have never carried traffic are tucked away
+  behind a "Show inactive" switch.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity and
   available space (APFS containers counted once).
 - **60-second history charts** with hover inspection: a vertical rule, highlighted points, the
