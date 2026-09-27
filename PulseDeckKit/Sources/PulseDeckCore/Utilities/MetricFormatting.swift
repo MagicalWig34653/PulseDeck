@@ -18,11 +18,16 @@ public enum MetricFormatting {
         Int64(clamping: bytes).formatted(.byteCount(style: .file, spellsOutZero: false).locale(locale))
     }
 
-    /// Throughput, e.g. "1.2 MB/s" (decimal multiples).
+    /// Throughput in decimal (SI) units from kB upwards: "0 kB/s", "0.5 kB/s", "12 kB/s",
+    /// "1.5 MB/s". One fraction digit below 10 of a unit, none above.
     public static func byteRate(_ bytesPerSecond: Double, locale: Locale = .current) -> String {
-        let bytes = bytesPerSecond.isFinite ? Int64(clamping: Int64(max(bytesPerSecond, 0).rounded())) : 0
-        let size = bytes.formatted(.byteCount(style: .file, spellsOutZero: false).locale(locale))
-        return "\(size)/s"
+        let value = bytesPerSecond.isFinite ? max(bytesPerSecond, 0) : 0
+        let units: [(divisor: Double, symbol: String)] = [(1e12, "TB"), (1e9, "GB"), (1e6, "MB"), (1e3, "kB")]
+        let unit = units.first { value >= $0.divisor } ?? (1e3, "kB")
+        let scaled = value / unit.divisor
+        let maximumFractionDigits = scaled < 10 ? 1 : 0
+        let number = scaled.formatted(.number.precision(.fractionLength(0...maximumFractionDigits)).locale(locale))
+        return "\(number) \(unit.symbol)/s"
     }
 
     /// Power, e.g. "4.3 W".

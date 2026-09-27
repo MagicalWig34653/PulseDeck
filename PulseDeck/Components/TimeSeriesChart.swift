@@ -58,9 +58,19 @@ struct TimeSeriesChart: View {
             .background(.background.secondary.opacity(isCompact ? 0.5 : 1), in: .rect(cornerRadius: isCompact ? 4 : 8))
             .overlay(RoundedRectangle(cornerRadius: isCompact ? 4 : 8).strokeBorder(.separator, lineWidth: 0.5))
             if !isCompact {
-                HStack {
+                HStack(spacing: 12) {
                     Text("60 seconds")
                     Spacer()
+                    let drawn = series.filter(\.isDrawn)
+                    if drawn.count > 1 {
+                        ForEach(Array(drawn.enumerated()), id: \.offset) { _, line in
+                            HStack(spacing: 4) {
+                                Circle().fill(line.color).frame(width: 7, height: 7)
+                                Text(line.label)
+                            }
+                        }
+                        Spacer()
+                    }
                     Text(verbatim: axisFormat(0))
                 }
                 .font(.caption2)
