@@ -14,7 +14,7 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | 2 CPU · 3 Memory · 4 Network · 5 Disk — collectors, 60 s charts with hover | ✅ done (v0.2.0) |
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
 | 6 GPU · 7 Energy · 8 Processes | ✅ done (v0.4.0) |
-| 9 Menu bar · 10 Optimization · 11 Polish | implemented on branch; **last push not CI-verified** (Actions spending limit), release v0.5.0 pending |
+| 9 Menu bar · 10 Optimization · 11 Polish | implemented, CI green (PR #10); release v0.5.0 pending |
 
 The product owner approves each milestone explicitly. Ask before starting one unless the request already says so.
 
@@ -47,10 +47,8 @@ The product owner approves each milestone explicitly. Ask before starting one un
   chart styling, `CategoryUnavailableView` error states, spoken menu bar metric.
 
 ### Next
-- **Owner action:** GitHub Actions stopped starting jobs ("recent account payments have failed or your
-  spending limit needs to be increased"). After that is fixed: re-run CI on the branch, run
-  `profile.yml` and fill the "round 2" column in `docs/PERFORMANCE.md`, run `screenshots.yml`
-  (new best-effort menu bar panel capture), then PR → merge → release 0.5.0.
+- Actions were blocked for a day by the account's spending limit ("recent account payments have
+  failed…"); jobs that fail within seconds without a runner mean that again — only the owner can fix it.
 - Each profile run costs ~20 macOS runner minutes; don't trigger it casually.
 - Needs a real Mac: Instruments (Time Profiler/SwiftUI for A and B), Launch at Login with a signed
   build in /Applications (ad-hoc builds may be refused by `SMAppService`), VoiceOver pass by ear.
