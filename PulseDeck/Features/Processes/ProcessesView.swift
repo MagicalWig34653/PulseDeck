@@ -22,7 +22,7 @@ struct ProcessesView: View {
     private var rows: [ProcessSnapshot] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let filtered = query.isEmpty ? allProcesses : allProcesses.filter { $0.matches(query) }
-        return filtered.sorted(using: sortOrder)
+        return ProcessSorting.sorted(filtered, by: sortOrder.first)
     }
 
     var body: some View {
@@ -95,7 +95,6 @@ struct ProcessesView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                .help(Text(verbatim: process.path ?? process.name))
             }
             .width(min: 160, ideal: 260)
             TableColumn("PID", value: \.pid) { process in
@@ -134,6 +133,10 @@ struct ProcessesView: View {
             Divider()
             Button("Show in Finder") {
                 if let process = targets.first { ProcessActions.showInFinder(process) }
+            }
+            .disabled(targets.count != 1 || targets.first?.path == nil)
+            Button("Copy Path") {
+                if let path = targets.first?.path { ProcessActions.copy(path) }
             }
             .disabled(targets.count != 1 || targets.first?.path == nil)
             Button("Copy PID") {
@@ -249,21 +252,5 @@ private struct ProcessActionFailure: Identifiable {
             lines.append(String(localized: "macOS did not quit \(failed.joined(separator: ", "))."))
         }
         return lines.joined(separator: "\n\n")
-    }
-}
-
-extension ProcessSnapshot {
-    // Sort keys. Missing values sort below every real value; they are never displayed.
-    var cpuSortValue: Double { cpu.value ?? -1 }
-    var memorySortValue: Int64 { memoryBytes.value.map { Int64(clamping: $0) } ?? -1 }
-    var threadSortValue: Int { threadCount.value ?? -1 }
-    var diskReadSortValue: Double { diskReadBytesPerSecond.value ?? -1 }
-    var diskWriteSortValue: Double { diskWriteBytesPerSecond.value ?? -1 }
-
-    /// Search: name or path contains the query, or the query is the PID.
-    func matches(_ query: String) -> Bool {
-        name.localizedStandardContains(query)
-            || String(pid) == query
-            || (path?.localizedStandardContains(query) ?? false)
     }
 }

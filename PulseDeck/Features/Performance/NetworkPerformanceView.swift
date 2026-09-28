@@ -1,49 +1,30 @@
 import PulseDeckCore
 import SwiftUI
 
-/// Network page (SPEC §16, §17): every interface individually — Ethernet, Wi‑Fi, bridges,
-/// Thunderbolt, VPN/tunnels — with a chart for the selected one.
+/// Network page (SPEC §16, §17) for one interface — Ethernet, Wi‑Fi, bridge, Thunderbolt,
+/// VPN/tunnel — chosen in the Performance list, where every interface has its own entry.
 struct NetworkPerformanceView: View {
     @Environment(AppState.self) private var appState
-    @State private var selection: NetworkInterfaceSnapshot.ID?
-    @AppStorage("showAllNetworkInterfaces") private var showsAllInterfaces = false
+    /// The interface to show; `nil` shows the primary (default-route) interface.
+    let interfaceID: String?
 
     private var state: MetricState<NetworkSnapshot>? { appState.latestSnapshot?.network }
 
-    private var interfaces: [NetworkInterfaceSnapshot] {
-        guard let network = state?.value else { return [] }
-        let visible = showsAllInterfaces ? network.interfaces : network.interfaces.filter { !$0.isNormallyHidden }
-        // Primary interface first, then interfaces that are up, then by name.
-        return visible.sorted { lhs, rhs in
-            let lhsPrimary = lhs.id == network.primaryInterfaceID
-            let rhsPrimary = rhs.id == network.primaryInterfaceID
-            if lhsPrimary != rhsPrimary { return lhsPrimary }
-            if lhs.isUp != rhs.isUp { return lhs.isUp }
-            return lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending
-        }
-    }
-
-    private var hiddenCount: Int {
-        guard let network = state?.value, !showsAllInterfaces else { return 0 }
-        return network.interfaces.count(where: \.isNormallyHidden)
-    }
-
-    private var toggleTitle: LocalizedStringResource {
-        hiddenCount > 0 ? "Show \(hiddenCount) inactive" : "Show inactive"
-    }
-
     private var selectedInterface: NetworkInterfaceSnapshot? {
-        let list = interfaces
-        return list.first { $0.id == selection } ?? list.first
+        guard let network = state?.value else { return nil }
+        let id = interfaceID ?? network.primaryInterfaceID
+        return network.interfaces.first { $0.id == id } ?? (interfaceID == nil ? network.interfaces.first : nil)
     }
 
     var body: some View {
         if let reason = state?.unavailableReason, !reason.isTransient {
+            CategoryUnavailableView(category: .network, reason: reason)
+        } else if let interfaceID, state?.value != nil, selectedInterface == nil {
+            // The interface went away while its page was open (e.g. a VPN disconnected).
             ContentUnavailableView {
-                Label("Network Interfaces", systemImage: ResourceCategory.network.systemImage)
+                Label(interfaceID, systemImage: ResourceCategory.network.systemImage)
             } description: {
-                Text("Not Available")
-                Text(reason.explanation)
+                Text("This network interface is no longer present.")
             }
         } else {
             ScrollView {
@@ -83,15 +64,6 @@ struct NetworkPerformanceView: View {
                             StatisticView(label: "Status", value: .available(selected.isUp ? String(localized: "Connected") : String(localized: "Inactive")))
                         }
                     }
-
-                    SectionHeader(title: "Interfaces") {
-                        Toggle(isOn: $showsAllInterfaces) {
-                            Text(toggleTitle)
-                        }
-                        .toggleStyle(.switch)
-                        .help("Also show loopback and interfaces that have never received or sent data.")
-                    }
-                    interfaceTable
                 }
                 .padding(20)
             }
@@ -111,52 +83,5 @@ struct NetworkPerformanceView: View {
         interface.receivedBytesPerSecond.flatMap { received in
             interface.sentBytesPerSecond.map { sent in "↓ \(Format.rate(received))  ↑ \(Format.rate(sent))" }
         }
-    }
-
-    private var interfaceTable: some View {
-        let rows = interfaces
-        return Table(rows, selection: $selection) {
-            TableColumn("Interface") { interface in
-                Label {
-                    Text(verbatim: interface.title)
-                } icon: {
-                    Image(systemName: interface.kind.systemImage)
-                        .foregroundStyle(interface.isUp ? Color.accentColor : Color.secondary)
-                }
-            }
-            .width(min: 140, ideal: 170)
-            TableColumn("Name") { interface in
-                Text(verbatim: interface.id).foregroundStyle(.secondary)
-            }
-            .width(min: 50, ideal: 60)
-            TableColumn("IP Address") { interface in
-                Text(verbatim: interface.ipv4Address ?? interface.ipv6Address ?? AppState.placeholder)
-                    .foregroundStyle(interface.addresses.isEmpty ? Color.secondary : Color.primary)
-                    .textSelection(.enabled)
-            }
-            .width(min: 90, ideal: 130)
-            TableColumn("Download") { interface in
-                MetricStateText(state: interface.receivedBytesPerSecond.map(Format.rate))
-            }
-            .width(min: 70, ideal: 80)
-            TableColumn("Upload") { interface in
-                MetricStateText(state: interface.sentBytesPerSecond.map(Format.rate))
-            }
-            .width(min: 70, ideal: 80)
-            TableColumn("Received") { interface in
-                Text(verbatim: Format.storage(interface.totalBytesReceived)).monospacedDigit()
-            }
-            .width(min: 70, ideal: 80)
-        }
-        .tableStyle(.inset(alternatesRowBackgrounds: true))
-        .frame(height: Self.tableHeight(rows: rows.count))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 0.5))
-    }
-
-    static func tableHeight(rows: Int) -> CGFloat {
-        let rowHeight: CGFloat = 26
-        let headerHeight: CGFloat = 34
-        let maximum: CGFloat = 360
-        return min(CGFloat(max(rows, 1)) * rowHeight + headerHeight, maximum)
     }
 }

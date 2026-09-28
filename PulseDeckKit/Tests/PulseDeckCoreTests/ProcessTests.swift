@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PulseDeckCore
 
@@ -113,5 +114,61 @@ struct ProcessUsageTrackerTests {
         _ = tracker.update([reading(pid: 1, cpu: 0)], at: instant(1))
         tracker.reset()
         #expect(tracker.update([reading(pid: 1, cpu: 10)], at: instant(2)).first?.cpu == .unavailable(.awaitingBaseline))
+    }
+}
+
+@Suite("Process sorting")
+struct ProcessSortingTests {
+    private func process(_ pid: Int32, _ name: String, cpu: MetricState<Double>, memory: UInt64 = 0) -> ProcessSnapshot {
+        ProcessSnapshot(
+            identity: ProcessIdentity(pid: pid, startTimeMicroseconds: 1), name: name, path: "/usr/bin/\(name)",
+            cpu: cpu, memoryBytes: .available(memory), threadCount: .available(1),
+            diskReadBytesPerSecond: .available(0), diskWriteBytesPerSecond: .available(0)
+        )
+    }
+
+    private var sample: [ProcessSnapshot] {
+        [
+            process(30, "zsh", cpu: .available(0.0), memory: 10),
+            process(10, "Safari", cpu: .available(0.5), memory: 300),
+            process(20, "kernel_task", cpu: .unavailable(.permissionDenied), memory: 50),
+            process(5, "safari2", cpu: .available(0.0), memory: 20),
+            process(40, "Xcode", cpu: .available(1.25), memory: 900),
+        ]
+    }
+
+    @Test func cpuDescendingPutsUnavailableLastAndBreaksTiesByPID() {
+        let sorted = ProcessSorting.sorted(sample, by: KeyPathComparator(\ProcessSnapshot.cpuSortValue, order: .reverse))
+        #expect(sorted.map(\.pid) == [40, 10, 5, 30, 20])
+    }
+
+    @Test func matchesFoundationSortForNumericKeys() {
+        for comparator in [
+            KeyPathComparator(\ProcessSnapshot.memorySortValue),
+            KeyPathComparator(\ProcessSnapshot.memorySortValue, order: .reverse),
+            KeyPathComparator(\ProcessSnapshot.pid),
+            KeyPathComparator(\ProcessSnapshot.pid, order: .reverse),
+        ] {
+            #expect(ProcessSorting.sorted(sample, by: comparator).map(\.pid) == sample.sorted(using: comparator).map(\.pid))
+        }
+    }
+
+    @Test func namesSortLikeFinder() {
+        let sorted = ProcessSorting.sorted(sample, by: KeyPathComparator(\ProcessSnapshot.name))
+        #expect(sorted.map(\.name) == ["kernel_task", "Safari", "safari2", "Xcode", "zsh"])
+        let reversed = ProcessSorting.sorted(sample, by: KeyPathComparator(\ProcessSnapshot.name, order: .reverse))
+        #expect(reversed.map(\.name) == ["zsh", "Xcode", "safari2", "Safari", "kernel_task"])
+    }
+
+    @Test func noComparatorKeepsOrder() {
+        #expect(ProcessSorting.sorted(sample, by: nil).map(\.pid) == sample.map(\.pid))
+    }
+
+    @Test func searchMatchesNamePathAndPID() {
+        let safari = sample[1]
+        #expect(safari.matches("saf"))
+        #expect(safari.matches("usr/bin"))
+        #expect(safari.matches("10"))
+        #expect(!safari.matches("1"))
     }
 }

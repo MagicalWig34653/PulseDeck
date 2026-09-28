@@ -2,13 +2,18 @@
 import Darwin
 import PulseDeckCore
 
-/// Process table telemetry (SPEC §20, §21) from libproc.
+/// Process table telemetry (SPEC §20, §21) from `sysctl` and libproc.
 ///
-/// Per process and tick: `proc_pidinfo(PROC_PIDTASKALLINFO)` (identity, name, owner, thread
-/// count) and `proc_pid_rusage(RUSAGE_INFO_V4)` (CPU time, physical footprint, disk I/O). For
-/// other users' processes the kernel refuses task-level information (`EPERM`); those rows keep
-/// name and PID from `PROC_PIDTBSDINFO` and show *Not Available* elsewhere (L‑7). A process that
-/// exits between listing and querying (`ESRCH`) is simply omitted — a normal race.
+/// Per tick:
+/// - one `sysctl(KERN_PROC_ALL)` lists every process with PID, start time (identity), owner and
+///   short name — for all users, as `ps` does;
+/// - per process that may be inspected: `proc_pidinfo(PROC_PIDTASKINFO)` (thread count) and
+///   `proc_pid_rusage(RUSAGE_INFO_V4)` (CPU time, physical footprint, disk I/O).
+///
+/// For other users' processes the kernel refuses task information (`EPERM`, L‑7). The refusal is
+/// remembered per process identity, so those rows cost no further system calls on later ticks
+/// (M10: they were 4 failing calls each per tick). A process that exits between listing and
+/// querying (`ESRCH`) is simply omitted — a normal race.
 ///
 /// `libproc.h` describes itself as "private interfaces … subject to change" although it ships in
 /// the SDK and SPEC §21 names it (IMPLEMENTATION_PLAN.md R2). Every failure degrades to
@@ -16,23 +21,24 @@ import PulseDeckCore
 ///
 /// Demand-driven: sampled only while the Processes section is visible.
 public actor ProcessMonitor: TelemetryProvider {
-    private struct NameInfo: Sendable {
+    /// What never changes for a process identity, looked up once.
+    private struct KnownProcess: Sendable {
         var name: String
         var path: String?
+        /// Task information was refused; don't ask again for this identity.
+        var isRestricted = false
     }
 
-    /// Extra PID slots beyond the kernel's count, for processes spawned between the two
-    /// `proc_listallpids` calls.
-    private static let pidSlack = 64
+    /// Extra `kinfo_proc` slots for processes spawned between sizing and reading the list.
+    private static let processSlack = 64
     /// `PROC_PIDPATHINFO_MAXSIZE` from `libproc.h` (4 × `MAXPATHLEN`).
     private static let pathBufferSize = 4 * 1024
 
     private let timebase: MachTimebase?
     private var tracker = ProcessUsageTracker()
-    /// Names and paths never change for a process identity, so they are looked up once.
-    private var names: [ProcessIdentity: NameInfo] = [:]
-    /// Grow-only scratch storage reused across samples.
-    private var pidBuffer: [pid_t] = []
+    private var known: [ProcessIdentity: KnownProcess] = [:]
+    /// Grow-only scratch storage reused across samples (~650 bytes per process).
+    private var processBuffer: [kinfo_proc] = []
     private var pathBuffer = [UInt8](repeating: 0, count: ProcessMonitor.pathBufferSize)
 
     public init() {
@@ -44,23 +50,26 @@ public actor ProcessMonitor: TelemetryProvider {
 
     public func capability() -> TelemetryCapability {
         guard timebase != nil else { return .unsupported(.transientFailure("mach_timebase_info failed")) }
-        return listPIDs() == nil ? .unsupported(.transientFailure("proc_listallpids failed")) : .supported
+        return listProcesses() == nil ? .unsupported(.transientFailure("sysctl KERN_PROC_ALL failed")) : .supported
     }
 
     public func sample(at instant: MonotonicInstant) -> MetricState<[ProcessSnapshot]> {
         guard let timebase else { return .unavailable(.transientFailure("mach_timebase_info failed")) }
-        guard let pids = listPIDs() else { return .unavailable(.transientFailure("proc_listallpids failed")) }
+        guard let count = listProcesses() else { return .unavailable(.transientFailure("sysctl KERN_PROC_ALL failed")) }
 
         var readings: [ProcessReading] = []
-        readings.reserveCapacity(pids.count)
-        for pid in pids {
-            if let reading = read(pid: pid, timebase: timebase) {
+        readings.reserveCapacity(count)
+        var live = Set<ProcessIdentity>(minimumCapacity: count)
+        for index in 0..<count {
+            let basic = BasicProcessInfo(processBuffer[index])
+            let pid = processBuffer[index].kp_proc.p_pid
+            if let reading = read(pid: pid, basic: basic, timebase: timebase) {
                 readings.append(reading)
+                live.insert(reading.identity)
             }
         }
-        let live = Set(readings.map(\.identity))
-        if names.count > live.count {
-            names = names.filter { live.contains($0.key) }
+        if known.count > live.count {
+            known = known.filter { live.contains($0.key) }
         }
         return .available(tracker.update(readings, at: instant))
     }
@@ -69,75 +78,88 @@ public actor ProcessMonitor: TelemetryProvider {
         tracker.reset()
     }
 
-    // MARK: - libproc
+    // MARK: - sysctl / libproc
 
-    private func listPIDs() -> [pid_t]? {
-        // With a NULL buffer the call returns the current number of processes.
-        let estimate = proc_listallpids(nil, 0)
-        guard estimate > 0 else { return nil }
-        let capacity = Int(estimate) + Self.pidSlack
-        if pidBuffer.count < capacity {
-            pidBuffer = [pid_t](repeating: 0, count: capacity)
+    /// Fills `processBuffer` with every process and returns how many entries are valid.
+    private func listProcesses() -> Int? {
+        let stride = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
+        var size = 0
+        let sized = mib.withUnsafeMutableBufferPointer { name in
+            sysctl(name.baseAddress, UInt32(name.count), nil, &size, nil, 0)
         }
-        let count = pidBuffer.withUnsafeMutableBytes { bytes in
-            proc_listallpids(bytes.baseAddress, Int32(bytes.count))
+        guard sized == 0, size > 0 else { return nil }
+        let capacity = size / stride + Self.processSlack
+        if processBuffer.count < capacity {
+            processBuffer = [kinfo_proc](repeating: kinfo_proc(), count: capacity)
         }
-        guard count > 0 else { return nil }
-        return Array(pidBuffer.prefix(min(Int(count), pidBuffer.count)))
+        var bytes = processBuffer.count * stride
+        let result = processBuffer.withUnsafeMutableBytes { buffer in
+            mib.withUnsafeMutableBufferPointer { name in
+                sysctl(name.baseAddress, UInt32(name.count), buffer.baseAddress, &bytes, nil, 0)
+            }
+        }
+        // ENOMEM: more processes appeared than the slack covers; the next tick resizes.
+        guard result == 0 else { return nil }
+        return min(bytes / stride, processBuffer.count)
     }
 
-    private func read(pid: pid_t, timebase: MachTimebase) -> ProcessReading? {
-        let basic: BasicProcessInfo
-        let threads: Result<Int, UnavailableReasonError>
-        var all = proc_taskallinfo()
-        let allSize = Int32(MemoryLayout<proc_taskallinfo>.size)
-        if proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &all, allSize) == allSize {
-            basic = BasicProcessInfo(all.pbsd)
-            threads = .success(Int(all.ptinfo.pti_threadnum))
-        } else {
-            let error = errno
-            if error == ESRCH { return nil }
-            // Task info is refused for other users' processes. `sysctl(KERN_PROC_PID)` still
-            // provides identity, short name and owner for every process (as `ps` uses it).
-            guard let fallback = ProcessControl.basicInfo(of: pid) else { return nil }
-            basic = fallback
-            threads = .failure(UnavailableReasonError(Self.reason(for: error)))
-        }
-
+    private func read(pid: pid_t, basic: BasicProcessInfo, timebase: MachTimebase) -> ProcessReading? {
         let identity = ProcessIdentity(pid: pid, startTimeMicroseconds: basic.startTimeMicroseconds)
+        var process = known[identity] ?? lookUp(pid: pid, basic: basic)
 
         let usage: Result<ProcessReading.Usage, UnavailableReasonError>
-        var info = rusage_info_v4()
-        let status = withUnsafeMutablePointer(to: &info) { pointer in
-            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
-            }
-        }
-        if status == 0 {
-            // CPU times are Mach absolute-time units, not nanoseconds (R3).
-            let ticks = info.ri_user_time &+ info.ri_system_time
-            if let nanoseconds = timebase.nanoseconds(fromTicks: ticks) {
-                usage = .success(.init(
-                    cpuTimeNanoseconds: nanoseconds,
-                    physicalFootprintBytes: info.ri_phys_footprint,
-                    diskBytesRead: info.ri_diskio_bytesread,
-                    diskBytesWritten: info.ri_diskio_byteswritten
-                ))
-            } else {
-                usage = .failure(UnavailableReasonError(.transientFailure("invalid timebase")))
-            }
+        let threads: Result<Int, UnavailableReasonError>
+        if process.isRestricted {
+            let denied = UnavailableReasonError(.permissionDenied)
+            usage = .failure(denied)
+            threads = .failure(denied)
         } else {
-            let error = errno
-            if error == ESRCH { return nil }
-            usage = .failure(UnavailableReasonError(Self.reason(for: error)))
-        }
+            var task = proc_taskinfo()
+            let taskSize = Int32(MemoryLayout<proc_taskinfo>.size)
+            if proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &task, taskSize) == taskSize {
+                threads = .success(Int(task.pti_threadnum))
+            } else {
+                let error = errno
+                if error == ESRCH { return nil }
+                threads = .failure(UnavailableReasonError(Self.reason(for: error)))
+            }
 
-        let nameInfo = names[identity] ?? lookUpName(pid: pid, basic: basic)
-        names[identity] = nameInfo
+            var info = rusage_info_v4()
+            let status = withUnsafeMutablePointer(to: &info) { pointer in
+                pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                    proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
+                }
+            }
+            if status == 0 {
+                // CPU times are Mach absolute-time units, not nanoseconds (R3).
+                let ticks = info.ri_user_time &+ info.ri_system_time
+                if let nanoseconds = timebase.nanoseconds(fromTicks: ticks) {
+                    usage = .success(.init(
+                        cpuTimeNanoseconds: nanoseconds,
+                        physicalFootprintBytes: info.ri_phys_footprint,
+                        diskBytesRead: info.ri_diskio_bytesread,
+                        diskBytesWritten: info.ri_diskio_byteswritten
+                    ))
+                } else {
+                    usage = .failure(UnavailableReasonError(.transientFailure("invalid timebase")))
+                }
+            } else {
+                let error = errno
+                if error == ESRCH { return nil }
+                usage = .failure(UnavailableReasonError(Self.reason(for: error)))
+            }
+            if case .failure(let usageError) = usage, usageError.reason == .permissionDenied,
+               case .failure(let threadError) = threads, threadError.reason == .permissionDenied {
+                process.isRestricted = true
+            }
+        }
+        known[identity] = process
+
         return ProcessReading(
             identity: identity,
-            name: nameInfo.name,
-            path: nameInfo.path,
+            name: process.name,
+            path: process.path,
             userID: basic.userID,
             usage: usage,
             threadCount: threads
@@ -145,8 +167,8 @@ public actor ProcessMonitor: TelemetryProvider {
     }
 
     /// Display name: the executable's file name from its path (not truncated), else the kernel's
-    /// short names (`pbi_name` up to 32 characters, `pbi_comm`/`p_comm` up to 16).
-    private func lookUpName(pid: pid_t, basic: BasicProcessInfo) -> NameInfo {
+    /// short name (`p_comm`, up to 16 characters).
+    private func lookUp(pid: pid_t, basic: BasicProcessInfo) -> KnownProcess {
         let length = pathBuffer.withUnsafeMutableBytes { bytes in
             proc_pidpath(pid, bytes.baseAddress, UInt32(bytes.count))
         }
@@ -155,13 +177,12 @@ public actor ProcessMonitor: TelemetryProvider {
         let name = ([fileName] + basic.names)
             .compactMap { $0 }
             .first { !$0.isEmpty }
-        return NameInfo(name: name ?? "PID \(pid)", path: path)
+        return KnownProcess(name: name ?? "PID \(pid)", path: path)
     }
 
     private static func reason(for error: Int32) -> UnavailableReason {
         error == EPERM || error == EACCES ? .permissionDenied : .transientFailure("libproc errno \(error)")
     }
-
 }
 
 /// Identity, owner and kernel short names of a process, from `proc_bsdinfo` or `kinfo_proc`.

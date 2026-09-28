@@ -79,6 +79,28 @@ jobs:
           capture processes-dark true -navigationPresentation sidebar -initialSection processes
           set_dark_mode false
 
+      - name: Capture menu bar panel
+        # Best effort: clicking the status item needs Accessibility access for the runner's
+        # shell. Without it the step leaves no image and the README keeps the previous one.
+        continue-on-error: true
+        run: |
+          with_timeout() { perl -e 'alarm 20; exec @ARGV' "$@"; }
+          for dark in false true; do
+            if [[ "$dark" == true ]]; then defaults write -g AppleInterfaceStyle Dark; name=menubar-dark; else defaults delete -g AppleInterfaceStyle 2>/dev/null || true; name=menubar-light; fi
+            # The panel follows the live system appearance, so switch it as well (as for the window).
+            with_timeout osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $dark" || true
+            defaults write de.linolaske.PulseDeck showMainWindowAtLaunch -bool NO
+            open -n "$APP" --args -menuBarMetric cpu
+            sleep 30
+            with_timeout osascript -e 'tell application "System Events" to tell process "PulseDeck" to click menu bar item 1 of menu bar 2'
+            sleep 4
+            swift scripts/capture-window.swift PulseDeck "$OUT/$name.png" 300 420 any-layer
+            pkill -x PulseDeck || true
+            sleep 3
+          done
+          defaults delete de.linolaske.PulseDeck showMainWindowAtLaunch 2>/dev/null || true
+          defaults delete -g AppleInterfaceStyle 2>/dev/null || true
+
       - name: Export rendered app icon
         run: |
           icns=$(find "$APP/Contents/Resources" -name '*.icns' | head -n 1)

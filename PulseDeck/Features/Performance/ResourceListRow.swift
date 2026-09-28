@@ -1,88 +1,91 @@
 import PulseDeckCore
 import SwiftUI
 
-/// One row of the resource list: icon, name, compact live preview and a sparkline of the last
-/// 60 seconds (SPEC §10).
-struct ResourceListRow: View {
+/// One row of the Performance list: icon, name, compact live preview and a sparkline of the
+/// last 60 seconds (SPEC §10). Disks and network interfaces each have their own row; those rows
+/// offer "Hide in Sidebar" (restore in Settings → Sidebar).
+struct PerformanceItemRow: View {
     @Environment(AppState.self) private var appState
-    let category: ResourceCategory
+    let item: PerformanceItem
 
     var body: some View {
         HStack(spacing: 8) {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(category.title)
-                    MetricStateText(state: appState.latestSnapshot?.preview(for: category))
+                    Text(verbatim: title)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    MetricStateText(state: preview)
                         .font(.caption)
                         .lineLimit(1)
                 }
             } icon: {
-                Image(systemName: category.systemImage)
+                Image(systemName: systemImage)
             }
             Spacer(minLength: 4)
-            if let sparkline {
-                TimeSeriesChart(
-                    history: sparkline.history,
-                    series: sparkline.series,
-                    yAxis: sparkline.yAxis,
-                    format: sparkline.format,
-                    accessibilityLabel: Text(category.title),
-                    isCompact: true,
-                    allowsHover: false
-                )
+            ResourceSparkline(item: item)
                 .frame(width: 56, height: 26)
-                .accessibilityHidden(true)
-            }
         }
         .accessibilityElement(children: .combine)
+        .contextMenu {
+            if isDevice {
+                Button("Hide in Sidebar") {
+                    appState.hide(item)
+                }
+            }
+        }
     }
 
-    private struct Sparkline {
-        let history: MetricHistory
-        let series: [ChartSeries]
-        let yAxis: ChartYAxis
-        let format: (Double) -> String
+    private var isDevice: Bool {
+        switch item {
+        case .category: false
+        case .disk, .networkInterface: true
+        }
     }
 
-    private var sparkline: Sparkline? {
-        let history = appState.history
-        switch category {
-        case .cpu:
-            return Sparkline(history: history.cpu, series: [ChartSeries(label: "Total", color: .blue, value: { sample in
-                guard let user = sample.values[0], let system = sample.values[1] else { return nil }
-                return user + system
-            })], yAxis: .fraction, format: Format.percent)
-        case .memory:
-            return Sparkline(history: history.memory, series: [ChartSeries(label: "Used", color: .purple, value: { $0.values[0] })],
-                             yAxis: .fraction, format: Format.percent)
-        case .network:
-            guard let primary = appState.latestSnapshot?.network.value?.primaryInterfaceID,
-                  let interfaceHistory = history.network[primary] else { return nil }
-            return Sparkline(history: interfaceHistory, series: [
-                ChartSeries(label: "Download", color: .blue, value: { $0.values[0] }),
-                ChartSeries(label: "Upload", color: .orange, value: { $0.values[1] }, isFilled: false),
-            ], yAxis: .automatic(minimum: 10_000), format: Format.rate)
-        case .disks:
-            guard let first = appState.latestSnapshot?.disks.value?.first,
-                  let diskHistory = history.disks[first.id] else { return nil }
-            return Sparkline(history: diskHistory, series: [
-                ChartSeries(label: "Read", color: .teal, value: { $0.values[0] }),
-                ChartSeries(label: "Write", color: .orange, value: { $0.values[1] }, isFilled: false),
-            ], yAxis: .automatic(minimum: 100_000), format: Format.rate)
-        case .gpu:
-            guard let first = appState.latestSnapshot?.gpu.value?.devices.first,
-                  first.utilization.unavailableReason != .noPublicAPI,
-                  let gpuHistory = history.gpus[first.id] else { return nil }
-            return Sparkline(history: gpuHistory, series: [ChartSeries(label: "Utilization", color: .green, value: { $0.values[0] })],
-                             yAxis: .fraction, format: Format.percent)
-        case .energy:
-            // Only where a power value can exist (portables); desktops show no sparkline.
-            guard let energy = appState.latestSnapshot?.energy.value,
-                  energy.battery.value != nil || energy.systemPowerWatts.value != nil else { return nil }
-            return Sparkline(history: history.energy, series: [
-                ChartSeries(label: "System Power In", color: .green, value: { $0.values[0] }),
-                ChartSeries(label: "Battery Discharging", color: .orange, value: { $0.values[2] }, isFilled: false),
-            ], yAxis: .automatic(minimum: 10), format: Format.watts)
+    private var disk: DiskSnapshot? {
+        guard case .disk(let id) = item else { return nil }
+        return appState.latestSnapshot?.disks.value?.first { $0.id == id }
+    }
+
+    private var interface: NetworkInterfaceSnapshot? {
+        guard case .networkInterface(let id) = item else { return nil }
+        return appState.latestSnapshot?.network.value?.interfaces.first { $0.id == id }
+    }
+
+    private var title: String {
+        switch item {
+        case .category(let category): String(localized: category.title)
+        case .disk(let id): disk?.name ?? id
+        case .networkInterface(let id): interface?.title ?? id
+        }
+    }
+
+    private var systemImage: String {
+        switch item {
+        case .category(let category): category.systemImage
+        case .disk: disk?.connection.systemImage ?? ResourceCategory.disks.systemImage
+        case .networkInterface: interface?.kind.systemImage ?? ResourceCategory.network.systemImage
+        }
+    }
+
+    /// "disk0 · R 1.2 MB/s · W 0 kB/s", "en0 · ↓ 12 kB/s ↑ 3 kB/s".
+    private var preview: MetricState<String>? {
+        switch item {
+        case .category(let category):
+            return appState.latestSnapshot?.preview(for: category)
+        case .disk(let id):
+            guard let disk else { return .unavailable(.sourceRemoved) }
+            return disk.readBytesPerSecond.flatMap { read in
+                disk.writeBytesPerSecond.map { written in
+                    String(localized: "\(id) · R \(Format.rate(read)) · W \(Format.rate(written))")
+                }
+            }
+        case .networkInterface(let id):
+            guard let interface else { return .unavailable(.sourceRemoved) }
+            return interface.receivedBytesPerSecond.flatMap { received in
+                interface.sentBytesPerSecond.map { sent in "\(id) · ↓ \(Format.rate(received)) ↑ \(Format.rate(sent))" }
+            }
         }
     }
 }

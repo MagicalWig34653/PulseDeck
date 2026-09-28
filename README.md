@@ -66,8 +66,7 @@ Implemented:
   free, swap and memory pressure, with a composition bar.
 - **Network** — every interface individually (Ethernet, Wi‑Fi, Thunderbolt, bridges, VPN/tunnels),
   download/upload rates from 64-bit kernel counters, totals, local IPv4/IPv6 addresses, and
-  hot-plug/VPN reconnect handling. Interfaces that have never carried traffic are tucked away
-  behind a "Show inactive" switch.
+  hot-plug/VPN reconnect handling.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity and
   available space (APFS containers counted once).
 - **GPU** — every Metal device (name, integrated/discrete, unified memory, location) and
@@ -83,18 +82,28 @@ Implemented:
   Force Quit with confirmation and Show in Finder. PIDs are tracked together with their start time,
   so a reused PID never inherits another process's numbers or receives a signal meant for it.
   Other users' processes (e.g. root) show name and PID; macOS withholds their details.
+- **One sidebar entry per device** — like Task Manager, every disk and network interface has its
+  own entry with live value and sparkline. Any of them can be hidden (context menu or Settings →
+  Sidebar); loopback, never-used interfaces and disk images start hidden.
 - **60-second history charts** with hover inspection: a vertical rule, highlighted points, the
   sample's time and all series values. Hovering only reads recorded history.
 - **Menu bar app** — keeps running in the menu bar when the window closes; the Dock icon appears
-  only while the main window is open. Compact overview popover and an optional live metric in the
-  menu bar (CPU, memory, GPU, network download/upload of the primary interface, battery power).
+  only while the main window is open. The menu bar panel shows CPU, memory, GPU, energy and network
+  with live values and 60-second sparklines; each row opens its page. Optional live metric in the
+  menu bar: CPU, memory, GPU, network download/upload of the primary interface, battery power or
+  battery charge.
+- **Launch at login** through macOS's login items (Settings → General).
+- **Accessibility** — VoiceOver labels throughout, Audio Graphs for every chart, stronger chart lines
+  with Increase Contrast, no animations, full keyboard navigation in lists and tables.
 - **Two navigation styles** — Liquid Glass top bar (default) or sidebar, persisted in Settings.
-- **Energy-aware sampling** — 1 Hz while the window is visible; every 3 s when it is closed,
+- **Energy-aware sampling** — 1 Hz while the window or menu bar panel is visible; every 3 s
+  (configurable 2–5 s) when they are closed,
   minimised or fully covered; stopped during sleep, with all counter baselines discarded on wake so
   no bogus spikes appear.
 
-Planned, following [`SPEC.md`](SPEC.md) §39: menu bar popover redesign, Instruments profiling,
-accessibility polish and Launch at Login.
+PulseDeck's own resource use is measured by a profiling workflow: about 0.3 % of one core and a
+14 MB memory footprint with no growth while running in the menu bar (details and method:
+[`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)).
 
 Some requested metrics have no reliable public macOS API (for example CPU/GPU package power,
 per-process network traffic and disk active time). These are shown as *Not Available*; see

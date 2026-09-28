@@ -398,9 +398,9 @@ Current status and hand-off notes for the next session: [`CLAUDE.md`](CLAUDE.md)
 | 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) | ✅ v0.4.0 (IOAccelerator utilization, labelled) |
 | 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown | ✅ v0.4.0 (`SystemPowerIn` labelled; needs MacBook check) |
 | 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests | ✅ v0.4.0 (`kinfo_proc` fallback for other users, L‑7) |
-| 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | partly (adaptive sampling, menu bar metric done) |
-| 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | open |
-| 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | open |
+| 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | ✅ (`SamplingDemand` tests; C/D measured) |
+| 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | ✅ on CI VM (`docs/PERFORMANCE.md`): background budget met, no growth; foreground above budget on the VM — confirm on a Mac |
+| 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | ✅ implemented; VoiceOver pass by ear needs a Mac |
 
 ---
 

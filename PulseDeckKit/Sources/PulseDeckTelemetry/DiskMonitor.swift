@@ -31,7 +31,17 @@ public actor DiskMonitor: TelemetryProvider {
     private static let bytesReadKey = "Bytes (Read)"
     private static let bytesWrittenKey = "Bytes (Write)"
 
+    /// Static part of a disk, keyed by its IOMedia registry entry ID.
+    private struct DiskDescription: Sendable {
+        var bsdName: String
+        var name: String
+        var connection: DiskConnection
+        var isRemovable: Bool
+        var size: UInt64?
+    }
+
     private var tracker = CounterRateTracker<String>()
+    private var descriptions: [UInt64: DiskDescription] = [:]
     private var availableSpace: [String: MetricState<UInt64>] = [:]
     private var availableSpaceDevices: Set<String> = []
     private var availableSpaceReadAt: MonotonicInstant?
@@ -107,28 +117,51 @@ public actor DiskMonitor: TelemetryProvider {
         }
         defer { IOObjectRelease(iterator) }
         var disks: [RawDisk] = []
+        var seen: [UInt64: DiskDescription] = [:]
         while case let driver = IOIteratorNext(iterator), driver != 0 {
             defer { IOObjectRelease(driver) }
-            if let disk = Self.readDisk(driver: driver) {
+            if let disk = readDisk(driver: driver, seen: &seen) {
                 disks.append(disk)
             }
         }
+        descriptions = seen
         return disks
     }
 
     /// Registry layout: IOBlockStorageDevice (parent) → IOBlockStorageDriver → IOMedia (whole
     /// disk, carries the BSD name).
-    private static func readDisk(driver: io_registry_entry_t) -> RawDisk? {
+    ///
+    /// The static description is cached per IOMedia registry entry, so a known disk costs four
+    /// registry calls per tick (driver ID, media, media ID, statistics) instead of about ten
+    /// (M10). New media — including a card swapped in the same reader — has a new entry ID and
+    /// is described afresh.
+    private func readDisk(driver: io_registry_entry_t, seen: inout [UInt64: DiskDescription]) -> RawDisk? {
         var media: io_registry_entry_t = 0
         guard IORegistryEntryGetChildEntry(driver, kIOServicePlane, &media) == KERN_SUCCESS else { return nil }
         defer { IOObjectRelease(media) }
-        guard let bsdName = property(media, kIOBSDNameKey) as? String else { return nil }
+        var mediaID: UInt64 = 0
+        guard IORegistryEntryGetRegistryEntryID(media, &mediaID) == KERN_SUCCESS else { return nil }
+        guard let description = descriptions[mediaID] ?? Self.describe(driver: driver, media: media) else { return nil }
+        seen[mediaID] = description
 
         var registryID: UInt64 = 0
         _ = IORegistryEntryGetRegistryEntryID(driver, &registryID)
+        let statistics = Self.property(driver, Self.statisticsKey) as? [String: Any]
+        return RawDisk(
+            bsdName: description.bsdName,
+            registryID: registryID,
+            name: description.name,
+            connection: description.connection,
+            isRemovable: description.isRemovable,
+            size: description.size,
+            bytesRead: (statistics?[Self.bytesReadKey] as? NSNumber)?.uint64Value,
+            bytesWritten: (statistics?[Self.bytesWrittenKey] as? NSNumber)?.uint64Value
+        )
+    }
 
-        let statistics = property(driver, statisticsKey) as? [String: Any]
-
+    /// Everything about a disk that does not change while its media is present.
+    private static func describe(driver: io_registry_entry_t, media: io_registry_entry_t) -> DiskDescription? {
+        guard let bsdName = property(media, kIOBSDNameKey) as? String else { return nil }
         var device: io_registry_entry_t = 0
         var protocolCharacteristics: [String: Any]?
         var deviceCharacteristics: [String: Any]?
@@ -137,18 +170,14 @@ public actor DiskMonitor: TelemetryProvider {
             deviceCharacteristics = property(device, "Device Characteristics") as? [String: Any]
             IOObjectRelease(device)
         }
-
         let productName = (deviceCharacteristics?["Product Name"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return RawDisk(
+        return DiskDescription(
             bsdName: bsdName,
-            registryID: registryID,
             name: productName.flatMap { $0.isEmpty ? nil : $0 } ?? registryName(media) ?? bsdName,
             connection: connection(from: protocolCharacteristics),
             isRemovable: (property(media, "Removable") as? Bool) ?? false,
-            size: (property(media, "Size") as? NSNumber)?.uint64Value,
-            bytesRead: (statistics?[bytesReadKey] as? NSNumber)?.uint64Value,
-            bytesWritten: (statistics?[bytesWrittenKey] as? NSNumber)?.uint64Value
+            size: (property(media, "Size") as? NSNumber)?.uint64Value
         )
     }
 

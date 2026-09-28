@@ -86,13 +86,6 @@ extension NetworkInterfaceKind {
 extension NetworkInterfaceSnapshot {
     /// "Wi‑Fi", "Thunderbolt Bridge", or the generic kind label (e.g. "VPN / Tunnel").
     var title: String { displayName ?? kind.label }
-
-    /// Interfaces hidden unless "Show all interfaces" is on: loopback and interfaces that have
-    /// never received or sent a byte. Unclassified interfaces are never hidden for that reason
-    /// alone (SPEC §17), and the toggle keeps every interface reachable.
-    var isNormallyHidden: Bool {
-        kind == .loopback || (totalBytesReceived == 0 && totalBytesSent == 0)
-    }
 }
 
 extension DiskConnection {
@@ -247,9 +240,19 @@ extension MenuBarMetric {
                 return rate.map { (self == .networkDownload ? "↓ " : "↑ ") + Format.rate($0) }
             }
         case .energy:
+            // Battery power only — never labelled or computed as system power (SPEC §19). The
+            // sign shows the direction: "+12 W" charging, "−6.2 W" discharging.
             snapshot.energy.flatMap { energy in
                 energy.battery.flatMap { battery in
-                    battery.batteryPowerWatts.map { MetricFormatting.watts($0.value) }
+                    battery.batteryPowerWatts.map { power in
+                        power.value.formatted(.number.precision(.fractionLength(1)).sign(strategy: .always(includingZero: false))) + " W"
+                    }
+                }
+            }
+        case .batteryCharge:
+            snapshot.energy.flatMap { energy in
+                energy.battery.map { battery in
+                    (battery.isCharging ? "⚡︎" : "") + Format.percent(battery.charge)
                 }
             }
         }
@@ -275,6 +278,12 @@ struct MetricStateText: View {
             Text("Not Available")
                 .foregroundStyle(.secondary)
                 .help(Text(reason.explanation))
+        case .unavailable?  where isCompact:
+            // No per-cell tooltip: in a table of hundreds of rows each `.help` re-registers a
+            // tooltip on every refresh (M10). VoiceOver still hears "Not Available".
+            Text(verbatim: AppState.placeholder)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(Text("Not Available"))
         case .unavailable(let reason)?:
             Text(verbatim: AppState.placeholder)
                 .foregroundStyle(.secondary)
@@ -387,4 +396,32 @@ extension SectionHeader where Accessory == EmptyView {
         self.title = title
         accessory = EmptyView()
     }
+}
+
+/// Full-page error state for a category whose collector cannot deliver at all (SPEC §34): the
+/// category, "Not Available" and why. Transient failures keep the page and show dashes instead.
+struct CategoryUnavailableView: View {
+    let category: ResourceCategory
+    let reason: UnavailableReason
+
+    var body: some View {
+        ContentUnavailableView {
+            Label {
+                Text(category.title)
+            } icon: {
+                Image(systemName: category.systemImage)
+            }
+        } description: {
+            Text("Not Available")
+            Text(reason.explanation)
+        }
+    }
+}
+
+/// Height of an inline table showing all `rows` without scrolling, up to a maximum.
+func inlineTableHeight(rows: Int) -> CGFloat {
+    let rowHeight: CGFloat = 26
+    let headerHeight: CGFloat = 34
+    let maximum: CGFloat = 360
+    return min(CGFloat(max(rows, 1)) * rowHeight + headerHeight, maximum)
 }

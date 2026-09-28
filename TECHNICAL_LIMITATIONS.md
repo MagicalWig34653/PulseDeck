@@ -208,3 +208,7 @@ Decisions by the product owner are recorded under each item.
 - CI cannot exercise the running GUI (menu bar residency, window close/reopen, Dock switching, sleep/wake)
   or Darwin telemetry on real hardware; these need a manual check on a Mac. Instruments profiling
   (SPEC §36) is scheduled for Milestone 10.
+- Milestone 10 profiling ran on the CI runner instead of a developer Mac: CPU time, memory and
+  wakeups of the Release build per scenario, `sample` call trees and an `xctrace` Time Profiler trace
+  (`docs/PERFORMANCE.md`). The runner is a GPU-less VM, so foreground rendering costs are pessimistic;
+  the budgets still need confirming with Instruments on real hardware.

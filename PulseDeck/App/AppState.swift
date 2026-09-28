@@ -69,6 +69,35 @@ final class AppState {
         didSet { if isMenuBarWindowVisible != oldValue { pushPolicy() } }
     }
 
+    /// A page the main window should show next, requested from outside the window (e.g. a
+    /// resource row in the menu bar panel). The window consumes and clears it.
+    var requestedItem: PerformanceItem? = nil
+
+    /// Which disks and network interfaces the Performance list shows. Persisted as JSON.
+    var sidebarVisibility: SidebarVisibility {
+        didSet {
+            guard sidebarVisibility != oldValue else { return }
+            if let data = try? JSONEncoder().encode(sidebarVisibility) {
+                defaults.set(data, forKey: PreferenceKey.sidebarVisibility)
+            }
+        }
+    }
+
+    /// The sidebar presentation lists the resource previews next to Processes, so GPU and
+    /// energy stay in demand there.
+    var showsResourcePreviewsInEverySection = false {
+        didSet { if showsResourcePreviewsInEverySection != oldValue { pushPolicy() } }
+    }
+
+    /// Sampling interval while only the menu bar is active (SPEC §7, §32 "refresh behavior").
+    var backgroundRefreshInterval: BackgroundRefreshInterval {
+        didSet {
+            guard backgroundRefreshInterval != oldValue else { return }
+            defaults.set(backgroundRefreshInterval.rawValue, forKey: PreferenceKey.backgroundRefreshInterval)
+            pushPolicy()
+        }
+    }
+
     var menuBarMetric: MenuBarMetric {
         didSet {
             guard menuBarMetric != oldValue else { return }
@@ -103,6 +132,9 @@ final class AppState {
         self.defaults = defaults
         menuBarMetric = defaults.string(forKey: PreferenceKey.menuBarMetric)
             .flatMap(MenuBarMetric.init(rawValue:)) ?? .none
+        sidebarVisibility = defaults.data(forKey: PreferenceKey.sidebarVisibility)
+            .flatMap { try? JSONDecoder().decode(SidebarVisibility.self, from: $0) } ?? SidebarVisibility()
+        backgroundRefreshInterval = BackgroundRefreshInterval(rawValue: defaults.integer(forKey: PreferenceKey.backgroundRefreshInterval)) ?? .standard
         let (stream, continuation) = AsyncStream.makeStream(of: EngineCommand.self)
         commands = stream
         commandContinuation = continuation
@@ -189,27 +221,22 @@ final class AppState {
 
     // MARK: - Sampling policy
 
-    /// Policy derived from what is currently on screen (SPEC §7, §26).
+    /// Policy derived from what is currently on screen (SPEC §7, §26). The rules live in
+    /// `SamplingDemand` (PulseDeckCore), where they are unit tested.
     var samplingPolicy: SamplingPolicy {
-        let windowVisible = mainWindowVisibility == .visible
-        var demand: Set<MetricKind> = []
-        if windowVisible, let visibleSection {
-            switch visibleSection {
-            case .performance:
-                // The resource list shows live previews of every category.
-                demand.formUnion([.gpu, .energy])
-            case .processes:
-                demand.insert(.processes)
-            }
+        let section: ObservationState.Section? = switch visibleSection {
+        case .performance?: .performance
+        case .processes?: .processes
+        case nil: nil
         }
-        if isMenuBarWindowVisible {
-            // The menu bar overview shows CPU, memory, GPU, energy and network.
-            demand.formUnion([.gpu, .energy])
-        }
-        if let kind = menuBarMetric.requiredMetricKind {
-            demand.insert(kind)
-        }
-        return SamplingPolicy(mode: windowVisible ? .foreground : .background, demand: demand)
+        let state = ObservationState(
+            isMainWindowVisible: mainWindowVisibility == .visible,
+            visibleSection: section,
+            showsResourcePreviewsInEverySection: showsResourcePreviewsInEverySection,
+            isMenuBarPanelVisible: isMenuBarWindowVisible,
+            menuBarMetricKind: menuBarMetric.requiredMetricKind
+        )
+        return SamplingDemand.policy(for: state, backgroundInterval: .seconds(backgroundRefreshInterval.rawValue))
     }
 
     private func pushPolicy() {

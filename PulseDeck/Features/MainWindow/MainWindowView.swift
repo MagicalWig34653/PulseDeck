@@ -7,15 +7,15 @@ struct MainWindowView: View {
     @Environment(AppState.self) private var appState
     @AppStorage(PreferenceKey.navigationPresentation) private var presentation: NavigationPresentation = .topBar
     @SceneStorage("selectedSection") private var section: AppSection = .performance
-    @SceneStorage("selectedCategory") private var category: ResourceCategory = .cpu
+    @SceneStorage("selectedPerformanceItem") private var item: PerformanceItem = .category(.cpu)
 
     var body: some View {
         Group {
             switch presentation {
             case .topBar:
-                TopBarNavigation(section: $section, category: $category)
+                TopBarNavigation(section: $section, item: $item)
             case .sidebar:
-                SidebarNavigation(section: $section, category: $category)
+                SidebarNavigation(section: $section, item: $item)
             }
         }
         .frame(minWidth: 720, minHeight: 460)
@@ -26,6 +26,15 @@ struct MainWindowView: View {
         }
         .onChange(of: section, initial: true) {
             appState.visibleSection = section
+        }
+        .onChange(of: appState.requestedItem, initial: true) {
+            guard let requested = appState.requestedItem else { return }
+            section = .performance
+            item = requested
+            appState.requestedItem = nil
+        }
+        .onChange(of: presentation, initial: true) {
+            appState.showsResourcePreviewsInEverySection = presentation == .sidebar
         }
         .onAppear(perform: applyInitialCategory)
     }
@@ -38,7 +47,7 @@ struct MainWindowView: View {
         if let raw = defaults.string(forKey: PreferenceKey.initialCategory),
            let initial = ResourceCategory(rawValue: raw) {
             section = .performance
-            category = initial
+            item = .category(initial)
         }
         if let raw = defaults.string(forKey: PreferenceKey.initialSection),
            let initial = AppSection(rawValue: raw) {
@@ -50,13 +59,13 @@ struct MainWindowView: View {
 /// Top-bar presentation: the section picker lives in the window toolbar.
 private struct TopBarNavigation: View {
     @Binding var section: AppSection
-    @Binding var category: ResourceCategory
+    @Binding var item: PerformanceItem
 
     var body: some View {
         Group {
             switch section {
             case .performance:
-                PerformanceView(category: $category)
+                PerformanceView(item: $item)
             case .processes:
                 ProcessesView()
             }
@@ -80,26 +89,28 @@ private struct TopBarNavigation: View {
     }
 }
 
-/// Sidebar presentation: one sidebar lists the performance categories and Processes.
+/// Sidebar presentation: one sidebar lists the Performance entries (each disk and network
+/// interface individually) and Processes.
 private struct SidebarNavigation: View {
+    @Environment(AppState.self) private var appState
     @Binding var section: AppSection
-    @Binding var category: ResourceCategory
+    @Binding var item: PerformanceItem
 
-    private enum Item: Hashable {
-        case performance(ResourceCategory)
+    private enum Entry: Hashable {
+        case performance(PerformanceItem)
         case processes
     }
 
-    private var selection: Binding<Item?> {
+    private var selection: Binding<Entry?> {
         Binding {
             switch section {
-            case .performance: .performance(category)
+            case .performance: .performance(appState.resolve(item))
             case .processes: .processes
             }
-        } set: { item in
-            switch item {
-            case .performance(let newCategory)?:
-                category = newCategory
+        } set: { entry in
+            switch entry {
+            case .performance(let newItem)?:
+                item = newItem
                 section = .performance
             case .processes?:
                 section = .processes
@@ -113,9 +124,9 @@ private struct SidebarNavigation: View {
         NavigationSplitView {
             List(selection: selection) {
                 Section {
-                    ForEach(ResourceCategory.allCases) { category in
-                        ResourceListRow(category: category)
-                            .tag(Item.performance(category))
+                    ForEach(appState.performanceItems) { item in
+                        PerformanceItemRow(item: item)
+                            .tag(Entry.performance(item))
                     }
                 } header: {
                     Text(AppSection.performance.title)
@@ -126,14 +137,14 @@ private struct SidebarNavigation: View {
                     } icon: {
                         Image(systemName: AppSection.processes.systemImage)
                     }
-                    .tag(Item.processes)
+                    .tag(Entry.processes)
                 }
             }
             .navigationSplitViewColumnWidth(min: 240, ideal: 270)
         } detail: {
             switch section {
             case .performance:
-                ResourceDetailView(category: category)
+                ResourceDetailView(item: appState.resolve(item))
             case .processes:
                 ProcessesView()
             }

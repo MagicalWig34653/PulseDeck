@@ -12,7 +12,15 @@ struct MenuBarLabel: View {
                     .monospacedDigit()
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("PulseDeck"))
+        .accessibilityValue(accessibilityValue)
+    }
+
+    /// The live metric for VoiceOver, with the placeholder spoken as "Not Available".
+    private var accessibilityValue: Text {
+        guard let text = appState.menuBarLabelText else { return Text(verbatim: "") }
+        guard text != AppState.placeholder else { return Text("\(String(localized: appState.menuBarMetric.title)): Not Available") }
+        return Text(verbatim: "\(String(localized: appState.menuBarMetric.title)) \(text)")
     }
 }
