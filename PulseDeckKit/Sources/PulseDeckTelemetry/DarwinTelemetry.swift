@@ -3,14 +3,17 @@ import PulseDeckCore
 
 /// Factory for the production collectors.
 public enum DarwinTelemetry {
-    /// Collectors implemented so far. GPU, energy and processes follow in Milestones 6–8 and are
-    /// reported as not implemented until then.
+    /// All collectors. GPU, energy and processes are demand-driven: the engine samples them only
+    /// while something observes them (`SamplingPolicy.demand`).
     public static func makeProviders() -> TelemetryProviders {
         TelemetryProviders(
             cpu: CPUMonitor(),
             memory: MemoryMonitor(),
             disks: DiskMonitor(),
-            network: NetworkMonitor()
+            network: NetworkMonitor(),
+            gpu: GPUMonitor(),
+            energy: EnergyMonitor(),
+            processes: ProcessMonitor()
         )
     }
 }

@@ -13,7 +13,7 @@ extension UnavailableReason {
         case .awaitingBaseline: "Collecting the first sample."
         case .invalidDelta: "No valid measurement for this interval."
         case .transientFailure: "The system did not return a value."
-        case .notApplicable: "Not applicable to this device."
+        case .notApplicable: "Does not apply to this device or its current state."
         }
     }
 
@@ -36,6 +36,21 @@ enum Format {
     static func memory(_ bytes: Double) -> String { MetricFormatting.memoryBytes(UInt64(max(bytes, 0))) }
     static func storage(_ bytes: UInt64) -> String { MetricFormatting.storageBytes(bytes) }
     static func rate(_ bytesPerSecond: Double) -> String { MetricFormatting.byteRate(bytesPerSecond) }
+    static func watts(_ watts: Double) -> String { MetricFormatting.watts(watts) }
+    /// Process CPU as a percentage of one logical processor, like Activity Monitor ("123.4%").
+    static func processCPU(_ fraction: Double) -> String { MetricFormatting.percent(fraction, fractionDigits: 1) }
+    /// "3 hr, 20 min".
+    static func duration(_ seconds: Double) -> String {
+        Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+    }
+    /// Appends the provenance marker SPEC §19 requires for values that were not reported directly.
+    static func attributed(_ value: AttributedValue<Double>, _ format: (Double) -> String) -> String {
+        switch value.provenance {
+        case .reported: format(value.value)
+        case .derived: String(localized: "\(format(value.value)) (derived)")
+        case .estimated: String(localized: "\(format(value.value)) (est.)")
+        }
+    }
 }
 
 // MARK: - Labels
@@ -110,6 +125,61 @@ extension MemoryPressure {
     }
 }
 
+extension GPULocation {
+    var label: String {
+        switch self {
+        case .builtIn: String(localized: "Built-in")
+        case .slot: String(localized: "Expansion Slot")
+        case .external: String(localized: "External")
+        case .unspecified: String(localized: "Unspecified")
+        }
+    }
+}
+
+extension GPUDeviceSnapshot {
+    /// "Integrated · Unified memory" / "Discrete · External".
+    var kindLabel: String {
+        let kind = hasUnifiedMemory || isLowPower ? String(localized: "Integrated") : String(localized: "Discrete")
+        let memory = hasUnifiedMemory ? String(localized: "Unified memory") : String(localized: "Dedicated memory")
+        return [kind, memory, isRemovable ? location.label : nil].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+extension BatterySnapshot {
+    var stateLabel: String {
+        if isCharging { return String(localized: "Charging") }
+        switch powerSource {
+        case .battery: return String(localized: "On Battery")
+        case .ac: return isCharged ? String(localized: "Charged") : String(localized: "Not Charging")
+        case .unknown: return String(localized: "Unknown")
+        }
+    }
+
+    var powerSourceLabel: String {
+        switch powerSource {
+        case .battery: String(localized: "Battery")
+        case .ac: String(localized: "Power Adapter")
+        case .unknown: String(localized: "Unknown")
+        }
+    }
+
+    /// Battery power with its direction spelled out and the "derived" marker, e.g.
+    /// "Discharging 6.2 W (derived)". Never labelled as system power (SPEC §19).
+    var batteryPowerText: MetricState<String> {
+        batteryPowerWatts.map { power in
+            let magnitude = AttributedValue(abs(power.value), provenance: power.provenance)
+            let text = Format.attributed(magnitude, Format.watts)
+            return if power.value > 0 {
+                String(localized: "Charging \(text)")
+            } else if power.value < 0 {
+                String(localized: "Discharging \(text)")
+            } else {
+                text
+            }
+        }
+    }
+}
+
 // MARK: - Previews
 
 extension SystemSnapshot {
@@ -145,9 +215,9 @@ extension SystemSnapshot {
                 return .available(device.utilization.value.map { Format.percent($0) } ?? device.name)
             }
         case .energy:
-            // Only a battery value is shown; it is labelled as such (never system power).
+            // Only battery state is shown; no wattage that could be read as system power.
             energy.flatMap { energy in
-                energy.battery.map { battery in String(localized: "Battery \(Format.percent(battery.charge))") }
+                energy.battery.map { battery in String(localized: "Battery \(Format.percent(battery.charge)) · \(battery.stateLabel)") }
             }
         }
     }
@@ -192,13 +262,16 @@ extension MenuBarMetric {
 /// Never displays `0` for a missing value (SPEC §3).
 struct MetricStateText: View {
     let state: MetricState<String>?
+    /// Table cells: show a dash (with the explanation as tooltip and "Not Available" for
+    /// VoiceOver) instead of the full "Not Available" text.
+    var isCompact = false
 
     var body: some View {
         switch state {
         case .available(let text)?:
             Text(verbatim: text)
                 .monospacedDigit()
-        case .unavailable(let reason)? where !reason.isTransient:
+        case .unavailable(let reason)? where !reason.isTransient && !isCompact:
             Text("Not Available")
                 .foregroundStyle(.secondary)
                 .help(Text(reason.explanation))

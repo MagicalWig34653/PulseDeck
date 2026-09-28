@@ -9,6 +9,8 @@ enum PreferenceKey {
     static let menuBarMetric = "menuBarMetric"
     /// Performance page to open at launch (not shown in Settings; used for screenshots).
     static let initialCategory = "initialCategory"
+    /// Section to open at launch, `performance` or `processes` (used for screenshots).
+    static let initialSection = "initialSection"
 }
 
 /// Scene identifiers.

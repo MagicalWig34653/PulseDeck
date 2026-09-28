@@ -30,14 +30,20 @@ struct MainWindowView: View {
         .onAppear(perform: applyInitialCategory)
     }
 
-    /// Optional `initialCategory` preference (e.g. launch argument `-initialCategory network`)
-    /// opens a specific Performance page; used for automated screenshots.
+    /// Optional `initialCategory` / `initialSection` preferences (e.g. launch arguments
+    /// `-initialCategory network`, `-initialSection processes`) open a specific page; used for
+    /// automated screenshots.
     private func applyInitialCategory() {
-        guard let raw = UserDefaults.standard.string(forKey: PreferenceKey.initialCategory),
-              let initial = ResourceCategory(rawValue: raw)
-        else { return }
-        section = .performance
-        category = initial
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: PreferenceKey.initialCategory),
+           let initial = ResourceCategory(rawValue: raw) {
+            section = .performance
+            category = initial
+        }
+        if let raw = defaults.string(forKey: PreferenceKey.initialSection),
+           let initial = AppSection(rawValue: raw) {
+            section = initial
+        }
     }
 }
 

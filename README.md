@@ -19,9 +19,9 @@
 ---
 
 > [!IMPORTANT]
-> **Early development.** CPU, memory, network and disk monitoring are live (Milestones 2–5), with
-> 60-second charts and hover inspection. GPU, energy and the process table follow in Milestones 6–8
-> and show **Not Available** until then. PulseDeck never displays invented or placeholder values.
+> **Early development.** CPU, memory, network, disk, GPU and energy monitoring and the process
+> table are live (Milestones 2–8), with 60-second charts and hover inspection. Values macOS does not
+> provide reliably show **Not Available**. PulseDeck never displays invented or placeholder values.
 
 ## Screenshots
 
@@ -39,6 +39,14 @@
 | Disks | Logical processors |
 |---|---|
 | <img src="docs/images/disks-light.png" alt="Disks page with read/write chart and capacity"> | <img src="docs/images/cpu-cores-dark.png" alt="Per-core CPU charts, dark appearance"> |
+
+| GPU | Energy |
+|---|---|
+| <img src="docs/images/gpu-dark.png" alt="GPU page, dark appearance"> | <img src="docs/images/energy-light.png" alt="Energy page with power and battery statistics"> |
+
+| Processes | Processes (sidebar) |
+|---|---|
+| <img src="docs/images/processes-light.png" alt="Process table sorted by CPU"> | <img src="docs/images/processes-dark.png" alt="Process table with sidebar navigation, dark appearance"> |
 
 | Top bar navigation | Sidebar navigation |
 |---|---|
@@ -62,22 +70,34 @@ Implemented:
   behind a "Show inactive" switch.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity and
   available space (APFS containers counted once).
+- **GPU** — every Metal device (name, integrated/discrete, unified memory, location) and
+  system-wide utilization with a history chart. Utilization comes from an undocumented driver
+  statistic (`IOAccelerator` “Device Utilization %”); the page says so, and shows *Not Available*
+  where a driver does not publish it.
+- **Energy** — battery charge, state, time remaining, voltage and current; battery charge/discharge
+  power (*derived* from voltage × current); on MacBooks, the power drawn from the adapter
+  (*System Power In*, an undocumented battery-controller value, labelled as such). Battery power is
+  never presented as system power. CPU/GPU power: *Not Available* (no public API).
+- **Processes** — native table with name, PID, CPU, memory (physical footprint), threads and disk
+  read/write rates; sorting, search, multi-selection, keyboard navigation, a context menu, Quit /
+  Force Quit with confirmation and Show in Finder. PIDs are tracked together with their start time,
+  so a reused PID never inherits another process's numbers or receives a signal meant for it.
+  Other users' processes (e.g. root) show name and PID; macOS withholds their details.
 - **60-second history charts** with hover inspection: a vertical rule, highlighted points, the
   sample's time and all series values. Hovering only reads recorded history.
 - **Menu bar app** — keeps running in the menu bar when the window closes; the Dock icon appears
   only while the main window is open. Compact overview popover and an optional live metric in the
-  menu bar (CPU, memory, network download/upload of the primary interface).
+  menu bar (CPU, memory, GPU, network download/upload of the primary interface, battery power).
 - **Two navigation styles** — Liquid Glass top bar (default) or sidebar, persisted in Settings.
 - **Energy-aware sampling** — 1 Hz while the window is visible; every 3 s when it is closed,
   minimised or fully covered; stopped during sleep, with all counter baselines discarded on wake so
   no bogus spikes appear.
 
-Planned, following [`SPEC.md`](SPEC.md) §39: GPU (Metal identification and utilization), energy
-(battery and power), a process table with actions, Instruments profiling, accessibility polish and
-Launch at Login.
+Planned, following [`SPEC.md`](SPEC.md) §39: menu bar popover redesign, Instruments profiling,
+accessibility polish and Launch at Login.
 
-Some requested metrics have no reliable public macOS API (for example system-wide GPU utilization,
-CPU/GPU package power and disk active time). These will be shown as *Not Available*; see
+Some requested metrics have no reliable public macOS API (for example CPU/GPU package power,
+per-process network traffic and disk active time). These are shown as *Not Available*; see
 [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md).
 
 ## Installation
