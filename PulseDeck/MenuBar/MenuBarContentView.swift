@@ -56,7 +56,8 @@ struct MenuBarContentView: View {
     }
 
     private func open(_ category: ResourceCategory) {
-        appState.requestedCategory = category
+        // `.category(.network)` resolves to the primary interface's own page.
+        appState.requestedItem = .category(category)
         openMainWindow()
     }
 

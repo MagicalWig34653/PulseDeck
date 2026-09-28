@@ -1,25 +1,27 @@
 import SwiftUI
 
-/// Performance section in top-bar mode: resource list with live previews on the leading
-/// side, details of the selected resource on the trailing side (SPEC §10).
+/// Performance section in top-bar mode: the Performance list with live previews on the leading
+/// side — CPU, memory, each disk, each network interface, GPU, energy — and the selected entry's
+/// page on the trailing side (SPEC §10).
 struct PerformanceView: View {
-    @Binding var category: ResourceCategory
+    @Environment(AppState.self) private var appState
+    @Binding var item: PerformanceItem
 
-    private var selection: Binding<ResourceCategory?> {
-        Binding { category } set: { newValue in
-            if let newValue { category = newValue }
+    private var selection: Binding<PerformanceItem?> {
+        Binding { appState.resolve(item) } set: { newValue in
+            if let newValue { item = newValue }
         }
     }
 
     var body: some View {
         NavigationSplitView {
-            List(ResourceCategory.allCases, selection: selection) { category in
-                ResourceListRow(category: category)
-                    .tag(category)
+            List(appState.performanceItems, selection: selection) { item in
+                PerformanceItemRow(item: item)
+                    .tag(item)
             }
             .navigationSplitViewColumnWidth(min: 240, ideal: 270)
         } detail: {
-            ResourceDetailView(category: category)
+            ResourceDetailView(item: appState.resolve(item))
         }
     }
 }

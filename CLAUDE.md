@@ -42,6 +42,11 @@ The product owner approves each milestone explicitly. Ask before starting one un
   build (`[profile]` in a commit message triggers it on a branch). Results and fixes: `docs/PERFORMANCE.md`.
   Processes use one `sysctl(KERN_PROC_ALL)` per tick and cache refusals; `ProcessSorting` (core);
   `DiskMonitor` caches static disk descriptions; sparklines are `isDecorative`.
+- Sidebar per device (owner request): `PerformanceItem` (`.category`, `.disk(id)`, `.networkInterface(id)`;
+  raw value `disk:disk0` is the scene-storage selection), `AppState.performanceItems`/`resolve(_:)`
+  (`.category(.disks/.network)` = first disk / primary interface), `SidebarVisibility` (core, tested;
+  per-device overrides over defaults, persisted as JSON), Settings → Sidebar, row context menu
+  "Hide in Sidebar". Disk and network pages show one device; their device tables were removed.
 - M11: Launch at Login (`System/LoginItemController.swift`, `SMAppService.mainApp`; state is read from
   the system, not stored), VoiceOver Audio Graphs (`accessibilityChartDescriptor`), Increase Contrast
   chart styling, `CategoryUnavailableView` error states, spoken menu bar metric.

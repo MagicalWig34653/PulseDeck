@@ -6,7 +6,17 @@ import SwiftUI
 /// Available, desktops for energy) rather than an empty or zero line.
 struct ResourceSparkline: View {
     @Environment(AppState.self) private var appState
-    let category: ResourceCategory
+    let item: PerformanceItem
+
+    init(item: PerformanceItem) {
+        self.item = item
+    }
+
+    init(category: ResourceCategory) {
+        item = .category(category)
+    }
+
+    private var category: ResourceCategory { item.category }
 
     var body: some View {
         if let sparkline {
@@ -32,6 +42,14 @@ struct ResourceSparkline: View {
 
     private var sparkline: Sparkline? {
         let history = appState.history
+        switch item {
+        case .disk(let id):
+            return history.disks[id].map(Self.diskSparkline)
+        case .networkInterface(let id):
+            return history.network[id].map(Self.networkSparkline)
+        case .category:
+            break
+        }
         switch category {
         case .cpu:
             return Sparkline(history: history.cpu, series: [ChartSeries(label: "Total", color: .blue, value: { sample in
@@ -44,17 +62,11 @@ struct ResourceSparkline: View {
         case .network:
             guard let primary = appState.latestSnapshot?.network.value?.primaryInterfaceID,
                   let interfaceHistory = history.network[primary] else { return nil }
-            return Sparkline(history: interfaceHistory, series: [
-                ChartSeries(label: "Download", color: .blue, value: { $0.values[0] }),
-                ChartSeries(label: "Upload", color: .orange, value: { $0.values[1] }, isFilled: false),
-            ], yAxis: .automatic(minimum: 10_000), format: Format.rate)
+            return Self.networkSparkline(interfaceHistory)
         case .disks:
             guard let first = appState.latestSnapshot?.disks.value?.first,
                   let diskHistory = history.disks[first.id] else { return nil }
-            return Sparkline(history: diskHistory, series: [
-                ChartSeries(label: "Read", color: .teal, value: { $0.values[0] }),
-                ChartSeries(label: "Write", color: .orange, value: { $0.values[1] }, isFilled: false),
-            ], yAxis: .automatic(minimum: 100_000), format: Format.rate)
+            return Self.diskSparkline(diskHistory)
         case .gpu:
             guard let first = appState.latestSnapshot?.gpu.value?.devices.first,
                   first.utilization.unavailableReason != .noPublicAPI,
@@ -70,5 +82,19 @@ struct ResourceSparkline: View {
                 ChartSeries(label: "Battery Discharging", color: .orange, value: { $0.values[2] }, isFilled: false),
             ], yAxis: .automatic(minimum: 10), format: Format.watts)
         }
+    }
+
+    private static func diskSparkline(_ history: MetricHistory) -> Sparkline {
+        Sparkline(history: history, series: [
+            ChartSeries(label: "Read", color: .teal, value: { $0.values[0] }),
+            ChartSeries(label: "Write", color: .orange, value: { $0.values[1] }, isFilled: false),
+        ], yAxis: .automatic(minimum: 100_000), format: Format.rate)
+    }
+
+    private static func networkSparkline(_ history: MetricHistory) -> Sparkline {
+        Sparkline(history: history, series: [
+            ChartSeries(label: "Download", color: .blue, value: { $0.values[0] }),
+            ChartSeries(label: "Upload", color: .orange, value: { $0.values[1] }, isFilled: false),
+        ], yAxis: .automatic(minimum: 10_000), format: Format.rate)
     }
 }

@@ -71,7 +71,17 @@ final class AppState {
 
     /// A page the main window should show next, requested from outside the window (e.g. a
     /// resource row in the menu bar panel). The window consumes and clears it.
-    var requestedCategory: ResourceCategory? = nil
+    var requestedItem: PerformanceItem? = nil
+
+    /// Which disks and network interfaces the Performance list shows. Persisted as JSON.
+    var sidebarVisibility: SidebarVisibility {
+        didSet {
+            guard sidebarVisibility != oldValue else { return }
+            if let data = try? JSONEncoder().encode(sidebarVisibility) {
+                defaults.set(data, forKey: PreferenceKey.sidebarVisibility)
+            }
+        }
+    }
 
     /// The sidebar presentation lists the resource previews next to Processes, so GPU and
     /// energy stay in demand there.
@@ -122,6 +132,8 @@ final class AppState {
         self.defaults = defaults
         menuBarMetric = defaults.string(forKey: PreferenceKey.menuBarMetric)
             .flatMap(MenuBarMetric.init(rawValue:)) ?? .none
+        sidebarVisibility = defaults.data(forKey: PreferenceKey.sidebarVisibility)
+            .flatMap { try? JSONDecoder().decode(SidebarVisibility.self, from: $0) } ?? SidebarVisibility()
         backgroundRefreshInterval = BackgroundRefreshInterval(rawValue: defaults.integer(forKey: PreferenceKey.backgroundRefreshInterval)) ?? .standard
         let (stream, continuation) = AsyncStream.makeStream(of: EngineCommand.self)
         commands = stream

@@ -1,26 +1,31 @@
 import PulseDeckCore
 import SwiftUI
 
-/// Disks page (SPEC §15): each storage device with read/write throughput, capacity and
-/// cumulative transfer. Active time has no public API (TECHNICAL_LIMITATIONS.md L‑3).
+/// Disk page (SPEC §15) for one storage device chosen in the Performance list, where every
+/// disk has its own entry: throughput, capacity and cumulative transfer. Active time has no public
+/// API (TECHNICAL_LIMITATIONS.md L‑3).
 struct DiskPerformanceView: View {
     @Environment(AppState.self) private var appState
-    @State private var selection: DiskSnapshot.ID?
+    /// The disk to show (BSD name); `nil` shows the first disk.
+    let diskID: String?
 
     private var state: MetricState<[DiskSnapshot]>? { appState.latestSnapshot?.disks }
-    private var disks: [DiskSnapshot] { state?.value ?? [] }
 
     private var selectedDisk: DiskSnapshot? {
-        disks.first { $0.id == selection } ?? disks.first
+        guard let disks = state?.value else { return nil }
+        guard let diskID else { return disks.first }
+        return disks.first { $0.id == diskID }
     }
 
     var body: some View {
         if let reason = state?.unavailableReason, !reason.isTransient {
+            CategoryUnavailableView(category: .disks, reason: reason)
+        } else if let diskID, state?.value != nil, selectedDisk == nil {
+            // The disk was ejected or unplugged while its page was open.
             ContentUnavailableView {
-                Label("Disks", systemImage: ResourceCategory.disks.systemImage)
+                Label(diskID, systemImage: ResourceCategory.disks.systemImage)
             } description: {
-                Text("Not Available")
-                Text(reason.explanation)
+                Text("This disk is no longer connected.")
             }
         } else {
             ScrollView {
@@ -64,9 +69,6 @@ struct DiskPerformanceView: View {
                             StatisticView(label: "Removable", value: .available(selected.isRemovable ? String(localized: "Yes") : String(localized: "No")))
                         }
                     }
-
-                    SectionHeader(title: "Devices")
-                    diskTable
                 }
                 .padding(20)
             }
@@ -92,43 +94,5 @@ struct DiskPerformanceView: View {
         disk.capacityBytes.flatMap { capacity in
             disk.availableBytes.map { available in Format.storage(capacity > available ? capacity - available : 0) }
         }
-    }
-
-    private var diskTable: some View {
-        let rows = disks
-        return Table(rows, selection: $selection) {
-            TableColumn("Device") { disk in
-                Label {
-                    Text(verbatim: disk.name)
-                } icon: {
-                    Image(systemName: disk.connection.systemImage)
-                        .foregroundStyle(.tint)
-                }
-            }
-            .width(min: 160, ideal: 220)
-            TableColumn("Name") { disk in
-                Text(verbatim: disk.id).foregroundStyle(.secondary)
-            }
-            .width(min: 50, ideal: 60)
-            TableColumn("Read") { disk in
-                MetricStateText(state: disk.readBytesPerSecond.map(Format.rate))
-            }
-            .width(min: 70, ideal: 80)
-            TableColumn("Write") { disk in
-                MetricStateText(state: disk.writeBytesPerSecond.map(Format.rate))
-            }
-            .width(min: 70, ideal: 80)
-            TableColumn("Capacity") { disk in
-                MetricStateText(state: disk.capacityBytes.map(Format.storage))
-            }
-            .width(min: 70, ideal: 90)
-            TableColumn("Available") { disk in
-                MetricStateText(state: disk.availableBytes.map(Format.storage))
-            }
-            .width(min: 70, ideal: 90)
-        }
-        .tableStyle(.inset(alternatesRowBackgrounds: true))
-        .frame(height: NetworkPerformanceView.tableHeight(rows: rows.count))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 0.5))
     }
 }

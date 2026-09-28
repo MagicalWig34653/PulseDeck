@@ -8,6 +8,8 @@ enum PreferenceKey {
     static let keepRunningWhenWindowCloses = "keepRunningWhenWindowCloses"
     static let menuBarMetric = "menuBarMetric"
     static let backgroundRefreshInterval = "backgroundRefreshInterval"
+    /// Disks and network interfaces shown/hidden in the Performance list (JSON).
+    static let sidebarVisibility = "sidebarVisibility"
     /// Performance page to open at launch (not shown in Settings; used for screenshots).
     static let initialCategory = "initialCategory"
     /// Section to open at launch, `performance` or `processes` (used for screenshots).

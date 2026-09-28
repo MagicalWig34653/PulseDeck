@@ -66,8 +66,7 @@ Implemented:
   free, swap and memory pressure, with a composition bar.
 - **Network** — every interface individually (Ethernet, Wi‑Fi, Thunderbolt, bridges, VPN/tunnels),
   download/upload rates from 64-bit kernel counters, totals, local IPv4/IPv6 addresses, and
-  hot-plug/VPN reconnect handling. Interfaces that have never carried traffic are tucked away
-  behind a "Show inactive" switch.
+  hot-plug/VPN reconnect handling.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity and
   available space (APFS containers counted once).
 - **GPU** — every Metal device (name, integrated/discrete, unified memory, location) and
@@ -83,6 +82,9 @@ Implemented:
   Force Quit with confirmation and Show in Finder. PIDs are tracked together with their start time,
   so a reused PID never inherits another process's numbers or receives a signal meant for it.
   Other users' processes (e.g. root) show name and PID; macOS withholds their details.
+- **One sidebar entry per device** — like Task Manager, every disk and network interface has its
+  own entry with live value and sparkline. Any of them can be hidden (context menu or Settings →
+  Sidebar); loopback, never-used interfaces and disk images start hidden.
 - **60-second history charts** with hover inspection: a vertical rule, highlighted points, the
   sample's time and all series values. Hovering only reads recorded history.
 - **Menu bar app** — keeps running in the menu bar when the window closes; the Dock icon appears

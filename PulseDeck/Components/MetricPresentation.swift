@@ -86,13 +86,6 @@ extension NetworkInterfaceKind {
 extension NetworkInterfaceSnapshot {
     /// "Wi‑Fi", "Thunderbolt Bridge", or the generic kind label (e.g. "VPN / Tunnel").
     var title: String { displayName ?? kind.label }
-
-    /// Interfaces hidden unless "Show all interfaces" is on: loopback and interfaces that have
-    /// never received or sent a byte. Unclassified interfaces are never hidden for that reason
-    /// alone (SPEC §17), and the toggle keeps every interface reachable.
-    var isNormallyHidden: Bool {
-        kind == .loopback || (totalBytesReceived == 0 && totalBytesSent == 0)
-    }
 }
 
 extension DiskConnection {
@@ -423,4 +416,12 @@ struct CategoryUnavailableView: View {
             Text(reason.explanation)
         }
     }
+}
+
+/// Height of an inline table showing all `rows` without scrolling, up to a maximum.
+func inlineTableHeight(rows: Int) -> CGFloat {
+    let rowHeight: CGFloat = 26
+    let headerHeight: CGFloat = 34
+    let maximum: CGFloat = 360
+    return min(CGFloat(max(rows, 1)) * rowHeight + headerHeight, maximum)
 }

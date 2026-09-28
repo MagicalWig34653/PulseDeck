@@ -107,7 +107,7 @@ struct GPUPerformanceView: View {
             .width(min: 70, ideal: 90)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
-        .frame(height: NetworkPerformanceView.tableHeight(rows: rows.count))
+        .frame(height: inlineTableHeight(rows: rows.count))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 0.5))
     }
 }
