@@ -40,10 +40,10 @@ other; confirm the budgets on a real Mac with Instruments (Time Profiler, Alloca
 
 | Scenario | Baseline (v0.4 code) | After round 1 | After round 2 |
 |---|---|---|---|
-| A · CPU page visible | 2.73 % | 3.15 % | *pending (CI blocked)* |
-| B · Processes visible | 8.87 % | 8.62 % | *pending* |
-| C · Menu bar only | 0.28 % | 0.30 % | *pending* |
-| D · 10 min background | 0.27 %, 71 MiB flat, footprint 14 MB | 0.26 %, 72 MiB flat, footprint 14 MB | *pending* |
+| A · CPU page visible | 2.73 % | 3.15 % | 2.65 % |
+| B · Processes visible | 8.87 % | 8.62 % | **6.62 %** |
+| C · Menu bar only | 0.28 % | 0.30 % | 0.22 % |
+| D · 10 min background | 0.27 %, 71 MiB flat, footprint 14 MB | 0.26 %, 72 MiB flat, footprint 14 MB | 0.19 %, 71 MiB flat, footprint 14 MB |
 
 A moved from 2.73 % to 3.15 % between the first two runs although round 1 changed nothing on the CPU
 page, so treat differences of that size as run-to-run noise on the shared runner.
@@ -72,8 +72,10 @@ collectors are demand-driven (`SamplingDemand`, unit tested); the background int
 timer tolerance; the menu bar label is reassigned only when its text changes; history is a fixed
 61-sample ring buffer per series.
 
+Round 2 cut B by a quarter: in its profile `ProcessesView.rows` no longer appears among the heavy
+frames, and `DiskMonitor` takes about half the samples it did. B's resident size grew by less than
+1 MiB in 60 s (caches of names and icons warming up).
+
 ## Open
 
-- Round 2 numbers: the Profile run was not started because the GitHub account hit its Actions spending
-  limit. Re-run the workflow once billing is restored and fill in the last column.
 - Instruments on a real Mac: Time Profiler and SwiftUI templates for A and B, Energy Log for C/D.

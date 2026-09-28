@@ -94,6 +94,31 @@ sample "$pid" 10 -file "$out/B-sample.txt" >/dev/null 2>&1 || echo "sample faile
 xcrun xctrace record --template "Time Profiler" --attach "$pid" --time-limit 20s \
     --output "$out/B-time-profiler.trace" >"$out/xctrace.log" 2>&1 || echo "xctrace failed; see xctrace.log"
 
+# E: Processes in the sidebar presentation (previews, GPU and energy stay live next to the
+# table), dark appearance. Memory every 30 s for 3 minutes to catch growth.
+defaults write -g AppleInterfaceStyle Dark
+pid=$(launch -navigationPresentation sidebar -initialSection processes)
+sleep "$warmup"
+{
+    echo
+    echo "### E · Processes in the sidebar (dark)"
+    echo
+    echo "| Seconds | RSS | Footprint |"
+    echo "|---|---|---|"
+} > "$out/sidebar.md"
+cpu_e0=$(cpu_seconds "$pid")
+for step in 0 1 2 3 4 5 6; do
+    echo "| $((step * 30)) | $(( $(rss_kib "$pid") / 1024 )) MiB | $(footprint_line "$pid" | sed 's/.*Footprint: //') |" >> "$out/sidebar.md"
+    if [[ "$step" -lt 6 ]]; then sleep 30; fi
+done
+cpu_e1=$(cpu_seconds "$pid")
+python3 - "$cpu_e0" "$cpu_e1" >> "$out/sidebar.md" <<'PY'
+import sys
+start, end = map(float, sys.argv[1:])
+print(f"\nAverage CPU over 180 s: {(end - start) / 180 * 100:.2f} % of one core")
+PY
+defaults delete -g AppleInterfaceStyle 2>/dev/null || true
+
 # C and D: menu bar only.
 defaults write "$bundle_id" showMainWindowAtLaunch -bool NO
 pid=$(launch)
@@ -126,7 +151,7 @@ top -l 2 -s 10 -pid "$pid" -stats pid,command,cpu,idlew,mem,power > "$out/D-top.
 stop_app
 defaults delete "$bundle_id" showMainWindowAtLaunch 2>/dev/null || true
 
-cat "$out/extended.md" >> "$results"
+cat "$out/sidebar.md" "$out/extended.md" >> "$results"
 {
     echo
     echo "### Wakeups and energy (top, last 10 s of D)"
