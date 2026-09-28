@@ -6,7 +6,7 @@ Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.l
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.4.0)
+## Status (last updated during Milestones 9–11)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -14,8 +14,7 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | 2 CPU · 3 Memory · 4 Network · 5 Disk — collectors, 60 s charts with hover | ✅ done (v0.2.0) |
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
 | 6 GPU · 7 Energy · 8 Processes | ✅ done (v0.4.0) |
-| **9 Menu bar** | ⏭ **next** |
-| 10 Instruments optimization · 11 Polish | open |
+| 9 Menu bar · 10 Optimization · 11 Polish | implemented on branch; **last push not CI-verified** (Actions spending limit), release v0.5.0 pending |
 
 The product owner approves each milestone explicitly. Ask before starting one unless the request already says so.
 
@@ -33,9 +32,28 @@ The product owner approves each milestone explicitly. Ask before starting one un
   process CPU % vs. Activity Monitor, Quit/Force Quit of an app. L‑5 (process energy) is still unvalidated,
   so there is no Energy column.
 
-### Next: Milestone 9 (Menu bar)
-- Popover redesign (compact rows with sparklines), menu bar metric review (energy currently shows
-  signed battery power), verify reduced background sampling. See SPEC §23–24.
+### What M9–M11 added
+- M9: `MenuBarContentView` rows (value + `ResourceSparkline`, click opens the page via
+  `AppState.requestedCategory`), `MenuBarMetric.batteryCharge`, energy metric titled "Battery Power"
+  (raw value `energy` kept), background refresh interval (2/3/5 s). Sampling rules moved to
+  `PulseDeckCore/Monitoring/SamplingDemand.swift` (tested): the panel counts as foreground; the
+  sidebar keeps GPU/energy previews live next to Processes.
+- M10: `.github/workflows/profile.yml` + `scripts/profile-app.sh` measure scenarios A–D on the Release
+  build (`[profile]` in a commit message triggers it on a branch). Results and fixes: `docs/PERFORMANCE.md`.
+  Processes use one `sysctl(KERN_PROC_ALL)` per tick and cache refusals; `ProcessSorting` (core);
+  `DiskMonitor` caches static disk descriptions; sparklines are `isDecorative`.
+- M11: Launch at Login (`System/LoginItemController.swift`, `SMAppService.mainApp`; state is read from
+  the system, not stored), VoiceOver Audio Graphs (`accessibilityChartDescriptor`), Increase Contrast
+  chart styling, `CategoryUnavailableView` error states, spoken menu bar metric.
+
+### Next
+- **Owner action:** GitHub Actions stopped starting jobs ("recent account payments have failed or your
+  spending limit needs to be increased"). After that is fixed: re-run CI on the branch, run
+  `profile.yml` and fill the "round 2" column in `docs/PERFORMANCE.md`, run `screenshots.yml`
+  (new best-effort menu bar panel capture), then PR → merge → release 0.5.0.
+- Each profile run costs ~20 macOS runner minutes; don't trigger it casually.
+- Needs a real Mac: Instruments (Time Profiler/SwiftUI for A and B), Launch at Login with a signed
+  build in /Applications (ad-hoc builds may be refused by `SMAppService`), VoiceOver pass by ear.
 
 ## Repository map
 ```
@@ -125,11 +143,15 @@ run `screenshots.yml` with `commit: true` → pull → review images → PR → 
 - On macOS 26 `PROC_PIDTBSDINFO` fails with `EPERM` for other users' processes (not only task info).
   Use `sysctl(KERN_PROC_PID)` → `kinfo_proc` for their identity; `p_starttime` is `p_un.__p_starttime` in Swift.
 - `Result<Void, E>` is not `Equatable`: test with `try result.get()` / `#expect(throws:)`.
+- `KeyPathComparator` sorting reads keys via dynamic key paths per comparison — slow for ~600 rows.
+  Use `ProcessSorting`. In the Linux test target `KeyPathComparator` needs `import Foundation`.
+- In large tables avoid `.help` per cell: tooltips are re-registered on every refresh.
+- `sample` "top of stack" output is all idle waits; use `scripts/sample-summary.py` for our frames.
 - `alert(item:content:)` is deprecated (fails the warnings-as-errors build); use `alert(_:isPresented:presenting:)`.
 
 ## Known open items
 - Release builds are ad-hoc signed, not notarized (no Developer ID secrets). Xcode disables the hardened
   runtime for ad-hoc signing. README documents the Gatekeeper workaround.
-- Not yet done: Instruments profiling (M10; include the process table at 1 Hz, ~2 syscalls per process),
-  Launch at Login via `SMAppService` (M11), VoiceOver pass, menu bar popover redesign (M9).
+- Foreground CPU on the CI VM is above the 1 % budget (A ≈ 3 %, B ≈ 8.6 % before round 2), mostly
+  AppKit/SwiftUI rendering on a GPU-less VM; background meets 0.3 %. See `docs/PERFORMANCE.md`.
 - Disk images appear in the Disks list (labelled "Disk Image"). The owner hasn't asked to hide them.
