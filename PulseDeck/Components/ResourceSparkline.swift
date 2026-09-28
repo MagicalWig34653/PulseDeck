@@ -17,9 +17,9 @@ struct ResourceSparkline: View {
                 format: sparkline.format,
                 accessibilityLabel: Text(category.title),
                 isCompact: true,
-                allowsHover: false
+                allowsHover: false,
+                isDecorative: true
             )
-            .accessibilityHidden(true)
         }
     }
 

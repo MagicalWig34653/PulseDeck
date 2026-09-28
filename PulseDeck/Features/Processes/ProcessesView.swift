@@ -22,7 +22,7 @@ struct ProcessesView: View {
     private var rows: [ProcessSnapshot] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let filtered = query.isEmpty ? allProcesses : allProcesses.filter { $0.matches(query) }
-        return filtered.sorted(using: sortOrder)
+        return ProcessSorting.sorted(filtered, by: sortOrder.first)
     }
 
     var body: some View {
@@ -252,21 +252,5 @@ private struct ProcessActionFailure: Identifiable {
             lines.append(String(localized: "macOS did not quit \(failed.joined(separator: ", "))."))
         }
         return lines.joined(separator: "\n\n")
-    }
-}
-
-extension ProcessSnapshot {
-    // Sort keys. Missing values sort below every real value; they are never displayed.
-    var cpuSortValue: Double { cpu.value ?? -1 }
-    var memorySortValue: Int64 { memoryBytes.value.map { Int64(clamping: $0) } ?? -1 }
-    var threadSortValue: Int { threadCount.value ?? -1 }
-    var diskReadSortValue: Double { diskReadBytesPerSecond.value ?? -1 }
-    var diskWriteSortValue: Double { diskWriteBytesPerSecond.value ?? -1 }
-
-    /// Search: name or path contains the query, or the query is the PID.
-    func matches(_ query: String) -> Bool {
-        name.localizedStandardContains(query)
-            || String(pid) == query
-            || (path?.localizedStandardContains(query) ?? false)
     }
 }

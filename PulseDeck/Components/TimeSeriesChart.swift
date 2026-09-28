@@ -36,6 +36,9 @@ struct TimeSeriesChart: View {
     /// Small variant (sparklines, per-core grid): no axis labels.
     var isCompact = false
     var allowsHover = true
+    /// Decorative charts (list sparklines whose row already states the value) are hidden from
+    /// VoiceOver and skip building their accessibility summary each tick.
+    var isDecorative = false
     /// Draw the plot background and border. Defaults to framed for full charts only.
     var isFramed: Bool?
 
@@ -79,16 +82,19 @@ struct TimeSeriesChart: View {
                 .foregroundStyle(.secondary)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(Text(verbatim: accessibilitySummary(in: window)))
-        // Audio Graphs / data table for VoiceOver (SPEC §31). Built only when VoiceOver asks.
-        .accessibilityChartDescriptor(ChartAccessibilityDescriptor(
-            history: history,
-            series: series.filter(\.isDrawn),
-            window: window,
-            upperBound: upperBound,
-            format: format
+        .modifier(ChartAccessibility(
+            isEnabled: !isDecorative,
+            label: accessibilityLabel,
+            summary: { accessibilitySummary(in: window) },
+            descriptor: {
+                ChartAccessibilityDescriptor(
+                    history: history,
+                    series: series.filter(\.isDrawn),
+                    window: window,
+                    upperBound: upperBound,
+                    format: format
+                )
+            }
         ))
     }
 
@@ -121,6 +127,29 @@ struct TimeSeriesChart: View {
             return String(localized: "No data")
         }
         return String(localized: "Current \(format(current)), peak \(format(peak)) in the last 60 seconds")
+    }
+}
+
+/// Accessibility of a chart: label, spoken summary and Audio Graphs descriptor. Decorative
+/// sparklines skip this work, which otherwise ran for every sparkline on every tick (M10).
+private struct ChartAccessibility: ViewModifier {
+    let isEnabled: Bool
+    let label: Text
+    let summary: () -> String
+    let descriptor: () -> ChartAccessibilityDescriptor
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label)
+                .accessibilityValue(Text(verbatim: summary()))
+                // Audio Graphs / data table for VoiceOver (SPEC §31).
+                .accessibilityChartDescriptor(descriptor())
+        } else {
+            content
+                .accessibilityHidden(true)
+        }
     }
 }
 
