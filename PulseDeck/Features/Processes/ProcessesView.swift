@@ -95,7 +95,6 @@ struct ProcessesView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                .help(Text(verbatim: process.path ?? process.name))
             }
             .width(min: 160, ideal: 260)
             TableColumn("PID", value: \.pid) { process in
@@ -134,6 +133,10 @@ struct ProcessesView: View {
             Divider()
             Button("Show in Finder") {
                 if let process = targets.first { ProcessActions.showInFinder(process) }
+            }
+            .disabled(targets.count != 1 || targets.first?.path == nil)
+            Button("Copy Path") {
+                if let path = targets.first?.path { ProcessActions.copy(path) }
             }
             .disabled(targets.count != 1 || targets.first?.path == nil)
             Button("Copy PID") {

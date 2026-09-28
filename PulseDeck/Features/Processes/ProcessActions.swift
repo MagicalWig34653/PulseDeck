@@ -28,9 +28,13 @@ enum ProcessActions {
     }
 
     static func copyPIDs(of processes: [ProcessSnapshot]) {
+        copy(processes.map { String($0.pid) }.joined(separator: "\n"))
+    }
+
+    static func copy(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(processes.map { String($0.pid) }.joined(separator: "\n"), forType: .string)
+        pasteboard.setString(text, forType: .string)
     }
 
     /// Innermost `.app` bundle containing `path`, e.g. a helper app inside another app.

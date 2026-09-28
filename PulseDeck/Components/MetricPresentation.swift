@@ -285,6 +285,12 @@ struct MetricStateText: View {
             Text("Not Available")
                 .foregroundStyle(.secondary)
                 .help(Text(reason.explanation))
+        case .unavailable?  where isCompact:
+            // No per-cell tooltip: in a table of hundreds of rows each `.help` re-registers a
+            // tooltip on every refresh (M10). VoiceOver still hears "Not Available".
+            Text(verbatim: AppState.placeholder)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(Text("Not Available"))
         case .unavailable(let reason)?:
             Text(verbatim: AppState.placeholder)
                 .foregroundStyle(.secondary)

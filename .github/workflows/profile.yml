@@ -48,8 +48,8 @@ jobs:
         run: |
           for file in profile/*-sample.txt; do
             [[ -f "$file" ]] || continue
-            echo "=== $file (top of stack) ==="
-            sed -n '/Sort by top of stack/,/Binary Images/p' "$file" | head -n 40
+            echo "=== $file ==="
+            python3 scripts/sample-summary.py "$file" PulseDeck 40
           done
 
       - name: Upload results
