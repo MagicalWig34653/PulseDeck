@@ -6,7 +6,7 @@ Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.l
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated during Milestones 9–11)
+## Status (last updated after release v0.5.0)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -14,7 +14,9 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | 2 CPU · 3 Memory · 4 Network · 5 Disk — collectors, 60 s charts with hover | ✅ done (v0.2.0) |
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
 | 6 GPU · 7 Energy · 8 Processes | ✅ done (v0.4.0) |
-| 9 Menu bar · 10 Optimization · 11 Polish | implemented, CI green (PR #10); release v0.5.0 pending |
+| 9 Menu bar · 10 Optimization · 11 Polish · per-device sidebar | ✅ done (v0.5.0) |
+
+All SPEC §39 milestones are implemented. Remaining work needs a real Mac (see *Next*).
 
 The product owner approves each milestone explicitly. Ask before starting one unless the request already says so.
 
@@ -34,7 +36,7 @@ The product owner approves each milestone explicitly. Ask before starting one un
 
 ### What M9–M11 added
 - M9: `MenuBarContentView` rows (value + `ResourceSparkline`, click opens the page via
-  `AppState.requestedCategory`), `MenuBarMetric.batteryCharge`, energy metric titled "Battery Power"
+  `AppState.requestedItem`), `MenuBarMetric.batteryCharge`, energy metric titled "Battery Power"
   (raw value `energy` kept), background refresh interval (2/3/5 s). Sampling rules moved to
   `PulseDeckCore/Monitoring/SamplingDemand.swift` (tested): the panel counts as foreground; the
   sidebar keeps GPU/energy previews live next to Processes.
@@ -158,4 +160,5 @@ run `screenshots.yml` with `commit: true` → pull → review images → PR → 
 - Foreground CPU on the CI VM is above the 1 % budget (A ≈ 2.7–3.3 %, B ≈ 6.6–8.6 %; run-to-run noise
   is ±1 point), mostly AppKit/SwiftUI rendering on a GPU-less VM; background meets 0.3 %. Sidebar +
   Processes has a ~200 MB footprint baseline (flat, not a leak). See `docs/PERFORMANCE.md`.
-- Disk images appear in the Disks list (labelled "Disk Image"). The owner hasn't asked to hide them.
+- Disk images are hidden from the Performance list by default (my call when the owner asked for per-device
+  entries; the runner has 16). They can be shown in Settings → Sidebar.
