@@ -1,3 +1,4 @@
+import Accessibility
 import PulseDeckCore
 import SwiftUI
 
@@ -81,6 +82,14 @@ struct TimeSeriesChart: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(Text(verbatim: accessibilitySummary(in: window)))
+        // Audio Graphs / data table for VoiceOver (SPEC §31). Built only when VoiceOver asks.
+        .accessibilityChartDescriptor(ChartAccessibilityDescriptor(
+            history: history,
+            series: series.filter(\.isDrawn),
+            window: window,
+            upperBound: upperBound,
+            format: format
+        ))
     }
 
     /// Axis labels use whole percentages; the callout keeps the chart's (finer) format.
@@ -168,6 +177,10 @@ private struct ChartCanvas: View {
     let window: ChartWindow
     let upperBound: Double
     let showsGrid: Bool
+    /// Increase Contrast: thicker lines, stronger fill and grid (SPEC §31).
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var isHighContrast: Bool { contrast == .increased }
 
     /// Horizontal grid lines at quarters, vertical lines every 10 seconds.
     private static let horizontalDivisions = 4
@@ -196,7 +209,7 @@ private struct ChartCanvas: View {
             grid.move(to: CGPoint(x: x, y: 0))
             grid.addLine(to: CGPoint(x: x, y: size.height))
         }
-        context.stroke(grid, with: .color(.secondary.opacity(0.15)), lineWidth: 0.5)
+        context.stroke(grid, with: .color(.secondary.opacity(isHighContrast ? 0.4 : 0.15)), lineWidth: isHighContrast ? 1 : 0.5)
     }
 
     private func draw(_ line: ChartSeries, in context: inout GraphicsContext, size: CGSize) {
@@ -226,12 +239,12 @@ private struct ChartCanvas: View {
                 area.addLine(to: CGPoint(x: last.x, y: size.height))
                 area.addLine(to: CGPoint(x: first.x, y: size.height))
                 area.closeSubpath()
-                context.fill(area, with: .color(line.color.opacity(0.18)))
+                context.fill(area, with: .color(line.color.opacity(isHighContrast ? 0.32 : 0.18)))
             }
             if run.count == 1 {
                 context.fill(Path(ellipseIn: CGRect(x: first.x - 1.5, y: first.y - 1.5, width: 3, height: 3)), with: .color(line.color))
             } else {
-                context.stroke(stroke, with: .color(line.color), style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+                context.stroke(stroke, with: .color(line.color), style: StrokeStyle(lineWidth: isHighContrast ? 2.5 : 1.5, lineJoin: .round))
             }
         }
     }
@@ -326,5 +339,60 @@ private struct ChartHoverOverlay: View {
         }
         .padding(8)
         .glassEffect(.regular, in: .rect(cornerRadius: 8))
+    }
+}
+
+/// VoiceOver chart description (Audio Graphs): one data series per drawn line over the last
+/// 60 seconds. X is seconds before the newest sample; gaps (missing samples) are omitted rather
+/// than reported as zero.
+private struct ChartAccessibilityDescriptor: AXChartDescriptorRepresentable {
+    let history: MetricHistory
+    let series: [ChartSeries]
+    let window: ChartWindow
+    let upperBound: Double
+    let format: (Double) -> String
+
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let windowSeconds = SystemHistory.window.secondsDouble
+        let xAxis = AXNumericDataAxisDescriptor(
+            title: String(localized: "Time"),
+            range: -windowSeconds...0,
+            gridlinePositions: []
+        ) { seconds in
+            String(localized: "\(Int((-seconds).rounded())) seconds ago")
+        }
+        let yAxis = AXNumericDataAxisDescriptor(
+            title: String(localized: "Value"),
+            range: 0...max(upperBound, 1),
+            gridlinePositions: []
+        ) { value in
+            value.formatted(.number.precision(.significantDigits(3)))
+        }
+        let samples = history.samples.filter { window.contains($0.timestamp) }
+        let dataSeries = series.map { line in
+            AXDataSeriesDescriptor(
+                name: String(localized: line.label),
+                isContinuous: true,
+                dataPoints: samples.compactMap { sample in
+                    guard let value = line.value(sample) else { return nil }
+                    let secondsBeforeEnd = Double(window.end.nanoseconds(since: sample.timestamp)) / 1e9
+                    return AXDataPoint(x: -secondsBeforeEnd, y: value, additionalValues: [], label: (line.format ?? format)(value))
+                }
+            )
+        }
+        return AXChartDescriptor(
+            title: nil,
+            summary: nil,
+            xAxis: xAxis,
+            yAxis: yAxis,
+            additionalAxes: [],
+            series: dataSeries
+        )
+    }
+
+    func updateChartDescriptor(_ descriptor: AXChartDescriptor) {
+        let fresh = makeChartDescriptor()
+        descriptor.series = fresh.series
+        descriptor.yAxis = fresh.yAxis
     }
 }

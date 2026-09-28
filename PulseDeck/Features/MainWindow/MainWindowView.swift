@@ -27,6 +27,15 @@ struct MainWindowView: View {
         .onChange(of: section, initial: true) {
             appState.visibleSection = section
         }
+        .onChange(of: appState.requestedCategory, initial: true) {
+            guard let requested = appState.requestedCategory else { return }
+            section = .performance
+            category = requested
+            appState.requestedCategory = nil
+        }
+        .onChange(of: presentation, initial: true) {
+            appState.showsResourcePreviewsInEverySection = presentation == .sidebar
+        }
         .onAppear(perform: applyInitialCategory)
     }
 

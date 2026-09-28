@@ -23,6 +23,14 @@ struct CPUPerformanceView: View {
     private var state: MetricState<CPUSnapshot>? { appState.latestSnapshot?.cpu }
 
     var body: some View {
+        if let reason = state?.unavailableReason, !reason.isTransient {
+            CategoryUnavailableView(category: .cpu, reason: reason)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 DetailHeader(

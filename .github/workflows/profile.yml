@@ -1,0 +1,60 @@
+name: Profile
+
+# Measures PulseDeck's own CPU, memory and wakeups in the SPEC §36 scenarios (CPU page, Processes,
+# menu bar only, extended background) with the Release build on a macOS runner. Runs on demand,
+# or on a push whose commit message contains "[profile]" (so a branch can profile before the
+# workflow exists on main). The runner is a VM: compare runs with each other, not with a real Mac.
+on:
+  workflow_dispatch:
+    inputs:
+      measure_seconds:
+        description: Measurement window per scenario (seconds)
+        default: "60"
+      extended_seconds:
+        description: Duration of the extended background scenario (seconds)
+        default: "600"
+  push:
+
+jobs:
+  profile:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[profile]')
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      APP: build/DerivedData/Build/Products/Release/PulseDeck.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app (Release)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PulseDeck.xcodeproj \
+            -scheme PulseDeck \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            | tail -n 5
+
+      - name: Measure scenarios A–D
+        run: |
+          scripts/profile-app.sh "$APP" profile \
+            "${{ inputs.measure_seconds || '60' }}" "${{ inputs.extended_seconds || '600' }}"
+          cat profile/results.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Heaviest stacks (sample)
+        if: always()
+        run: |
+          for file in profile/*-sample.txt; do
+            [[ -f "$file" ]] || continue
+            echo "=== $file (top of stack) ==="
+            sed -n '/Sort by top of stack/,/Binary Images/p' "$file" | head -n 40
+          done
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile
+          path: profile

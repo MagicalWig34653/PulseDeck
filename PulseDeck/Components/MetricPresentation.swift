@@ -247,9 +247,19 @@ extension MenuBarMetric {
                 return rate.map { (self == .networkDownload ? "↓ " : "↑ ") + Format.rate($0) }
             }
         case .energy:
+            // Battery power only — never labelled or computed as system power (SPEC §19). The
+            // sign shows the direction: "+12 W" charging, "−6.2 W" discharging.
             snapshot.energy.flatMap { energy in
                 energy.battery.flatMap { battery in
-                    battery.batteryPowerWatts.map { MetricFormatting.watts($0.value) }
+                    battery.batteryPowerWatts.map { power in
+                        power.value.formatted(.number.precision(.fractionLength(1)).sign(strategy: .always(includingZero: false))) + " W"
+                    }
+                }
+            }
+        case .batteryCharge:
+            snapshot.energy.flatMap { energy in
+                energy.battery.map { battery in
+                    (battery.isCharging ? "⚡︎" : "") + Format.percent(battery.charge)
                 }
             }
         }
@@ -386,5 +396,25 @@ extension SectionHeader where Accessory == EmptyView {
     init(title: LocalizedStringResource) {
         self.title = title
         accessory = EmptyView()
+    }
+}
+
+/// Full-page error state for a category whose collector cannot deliver at all (SPEC §34): the
+/// category, "Not Available" and why. Transient failures keep the page and show dashes instead.
+struct CategoryUnavailableView: View {
+    let category: ResourceCategory
+    let reason: UnavailableReason
+
+    var body: some View {
+        ContentUnavailableView {
+            Label {
+                Text(category.title)
+            } icon: {
+                Image(systemName: category.systemImage)
+            }
+        } description: {
+            Text("Not Available")
+            Text(reason.explanation)
+        }
     }
 }

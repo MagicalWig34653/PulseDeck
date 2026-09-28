@@ -7,6 +7,7 @@ enum PreferenceKey {
     static let showMainWindowAtLaunch = "showMainWindowAtLaunch"
     static let keepRunningWhenWindowCloses = "keepRunningWhenWindowCloses"
     static let menuBarMetric = "menuBarMetric"
+    static let backgroundRefreshInterval = "backgroundRefreshInterval"
     /// Performance page to open at launch (not shown in Settings; used for screenshots).
     static let initialCategory = "initialCategory"
     /// Section to open at launch, `performance` or `processes` (used for screenshots).
@@ -33,6 +34,23 @@ enum NavigationPresentation: String, CaseIterable, Identifiable {
     }
 }
 
+/// Background sampling interval in seconds, within SPEC §7's 2–5 s range.
+enum BackgroundRefreshInterval: Int, CaseIterable, Identifiable {
+    case frequent = 2
+    case standard = 3
+    case economical = 5
+
+    var id: Self { self }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .frequent: "Every 2 seconds"
+        case .standard: "Every 3 seconds"
+        case .economical: "Every 5 seconds (saves the most energy)"
+        }
+    }
+}
+
 /// The optional live metric shown next to the menu bar icon (SPEC §24). New display modes are
 /// added as new cases plus a value in `MenuBarMetric.value(in:)`.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
@@ -42,7 +60,10 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
     case gpu
     case networkDownload
     case networkUpload
+    /// Battery charge/discharge power (derived). Raw value kept from v0.1 so saved
+    /// preferences stay valid.
     case energy
+    case batteryCharge
 
     var id: Self { self }
 
@@ -54,7 +75,8 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .gpu: "GPU"
         case .networkDownload: "Network Download"
         case .networkUpload: "Network Upload"
-        case .energy: "Energy"
+        case .energy: "Battery Power"
+        case .batteryCharge: "Battery Charge"
         }
     }
 
@@ -66,7 +88,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .memory: .memory
         case .gpu: .gpu
         case .networkDownload, .networkUpload: .network
-        case .energy: .energy
+        case .energy, .batteryCharge: .energy
         }
     }
 }
