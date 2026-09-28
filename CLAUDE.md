@@ -155,6 +155,7 @@ run `screenshots.yml` with `commit: true` → pull → review images → PR → 
 ## Known open items
 - Release builds are ad-hoc signed, not notarized (no Developer ID secrets). Xcode disables the hardened
   runtime for ad-hoc signing. README documents the Gatekeeper workaround.
-- Foreground CPU on the CI VM is above the 1 % budget (A ≈ 3 %, B ≈ 8.6 % before round 2), mostly
-  AppKit/SwiftUI rendering on a GPU-less VM; background meets 0.3 %. See `docs/PERFORMANCE.md`.
+- Foreground CPU on the CI VM is above the 1 % budget (A ≈ 2.7–3.3 %, B ≈ 6.6–8.6 %; run-to-run noise
+  is ±1 point), mostly AppKit/SwiftUI rendering on a GPU-less VM; background meets 0.3 %. Sidebar +
+  Processes has a ~200 MB footprint baseline (flat, not a leak). See `docs/PERFORMANCE.md`.
 - Disk images appear in the Disks list (labelled "Disk Image"). The owner hasn't asked to hide them.

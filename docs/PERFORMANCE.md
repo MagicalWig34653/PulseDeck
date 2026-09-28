@@ -38,12 +38,13 @@ other; confirm the budgets on a real Mac with Instruments (Time Profiler, Alloca
 
 ## Results
 
-| Scenario | Baseline (v0.4 code) | After round 1 | After round 2 |
+| Scenario | Baseline (v0.4 code) | After round 1 | After round 2 (two runs) |
 |---|---|---|---|
-| A · CPU page visible | 2.73 % | 3.15 % | 2.65 % |
-| B · Processes visible | 8.87 % | 8.62 % | **6.62 %** |
-| C · Menu bar only | 0.28 % | 0.30 % | 0.22 % |
-| D · 10 min background | 0.27 %, 71 MiB flat, footprint 14 MB | 0.26 %, 72 MiB flat, footprint 14 MB | 0.19 %, 71 MiB flat, footprint 14 MB |
+| A · CPU page visible | 2.73 % | 3.15 % | 2.65 % / 3.33 % |
+| B · Processes visible | 8.87 % | 8.62 % | 6.62 % / 8.59 % |
+| C · Menu bar only | 0.28 % | 0.30 % | 0.22 % / 0.20 % |
+| D · 10 min background | 0.27 %, 71 MiB flat, footprint 14 MB | 0.26 %, 72 MiB flat, footprint 14 MB | 0.19 % / 0.21 %, 71 MiB flat, footprint 14 MB |
+| E · Processes in the sidebar (dark), 3 min | — | — | 9.46 %; footprint 200 → 202 MB in the first minute, then flat |
 
 A moved from 2.73 % to 3.15 % between the first two runs although round 1 changed nothing on the CPU
 page, so treat differences of that size as run-to-run noise on the shared runner.
@@ -72,9 +73,16 @@ collectors are demand-driven (`SamplingDemand`, unit tested); the background int
 timer tolerance; the menu bar label is reassigned only when its text changes; history is a fixed
 61-sample ring buffer per series.
 
-Round 2 cut B by a quarter: in its profile `ProcessesView.rows` no longer appears among the heavy
-frames, and `DiskMonitor` takes about half the samples it did. B's resident size grew by less than
-1 MiB in 60 s (caches of names and icons warming up).
+Round 2 was measured twice on the same code: B was 6.62 % in one run and 8.59 % in the other, so
+whole-app CPU differences of this size are within the runner's noise and no improvement of B is
+claimed from them. The profiles do show less time in PulseDeck's own code: `ProcessesView.rows` no
+longer appears among the heavy frames, and `DiskMonitor` takes about half the samples it did.
+
+**No memory growth in any scenario.** B's resident size grows by ~1–2 MiB in its first minute (name
+and icon caches filling). Scenario E was added after a screenshot showed a 205 MB footprint for the
+sidebar presentation: the footprint is 200 MB at start, 202 MB after one minute and then flat for
+two more minutes, i.e. a higher fixed baseline (the sidebar keeps six sparklines and the GPU/energy
+collectors live next to the table, in dark mode), not a leak. Worth a look with Allocations on a Mac.
 
 ## Open
 
