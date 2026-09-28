@@ -6,14 +6,14 @@ Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.l
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after Milestones 6–8)
+## Status (last updated after release v0.4.0)
 
 | Milestone (SPEC §39) | State |
 |---|---|
 | 1 Foundation — project, lifecycle, menu bar, navigation, models, engine | ✅ done (v0.1.0) |
 | 2 CPU · 3 Memory · 4 Network · 5 Disk — collectors, 60 s charts with hover | ✅ done (v0.2.0) |
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
-| 6 GPU · 7 Energy · 8 Processes | ✅ implemented, CI green (release pending: v0.4.0) |
+| 6 GPU · 7 Energy · 8 Processes | ✅ done (v0.4.0) |
 | **9 Menu bar** | ⏭ **next** |
 | 10 Instruments optimization · 11 Polish | open |
 

@@ -395,9 +395,9 @@ Current status and hand-off notes for the next session: [`CLAUDE.md`](CLAUDE.md)
 | 3 | Memory | `MemoryMonitor`, pressure source, charts | documented Used formula | ✅ v0.2.0 |
 | 4 | Network | `NetworkMonitor`, classification, VPN/tunnel, hot-plug | per-interface charts, counter-reset tests | ✅ v0.2.0 (IP addresses v0.3.0) |
 | 5 | Disk | `DiskMonitor`, IORegistry capacity mapping | hot-plug safe, rate tests | ✅ v0.2.0 |
-| 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) | ✅ (IOAccelerator utilization, labelled) |
-| 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown | ✅ (`SystemPowerIn` labelled; needs MacBook check) |
-| 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests | ✅ (`kinfo_proc` fallback for other users, L‑7) |
+| 6 | GPU | Metal identification, capability detection | honest unavailable state (L‑1) | ✅ v0.4.0 (IOAccelerator utilization, labelled) |
+| 7 | Energy | IOPS battery metrics, provenance labels | derived/unavailable clearly shown | ✅ v0.4.0 (`SystemPowerIn` labelled; needs MacBook check) |
+| 8 | Processes | `ProcessMonitor`, `Table`, sort/search/actions | PID reuse + disappearance tests | ✅ v0.4.0 (`kinfo_proc` fallback for other users, L‑7) |
 | 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | partly (adaptive sampling, menu bar metric done) |
 | 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | open |
 | 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | open |
