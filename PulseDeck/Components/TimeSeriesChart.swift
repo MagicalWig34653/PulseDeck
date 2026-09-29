@@ -41,6 +41,9 @@ struct TimeSeriesChart: View {
     var isDecorative = false
     /// Draw the plot background and border. Defaults to framed for full charts only.
     var isFramed: Bool?
+    /// Scroll smoothly between samples when the window allows it. Defaults to full charts only;
+    /// list sparklines stay static.
+    var scrollsSmoothly: Bool?
 
     @Environment(\.chartScrollInterval) private var scrollInterval
     @AppStorage(PreferenceKey.chartGridStyle) private var gridStyle: ChartGridStyle = .scrolling
@@ -50,7 +53,7 @@ struct TimeSeriesChart: View {
     private static let scrollFrameInterval = 1.0 / 30
 
     var body: some View {
-        if let scrollInterval, !isCompact {
+        if let scrollInterval, scrollsSmoothly ?? !isCompact {
             TimelineView(.animation(minimumInterval: Self.scrollFrameInterval)) { context in
                 chart(in: ChartWindow(history: history, scrollingOver: scrollInterval, now: context.date))
             }
@@ -306,8 +309,9 @@ private struct ChartCanvas: View {
         // Split into contiguous runs so missing samples become gaps, never zeros.
         var runs: [[CGPoint]] = []
         var current: [CGPoint] = []
-        for sample in history.samples {
-            guard sample.timestamp >= window.start else { continue }
+        // Start one sample before the window so the line reaches the left edge (clipped there).
+        let samples = history.samples
+        for sample in samples[samples.drawingStartIndex(forWindowStart: window.start)...] {
             if let value = line.value(sample) {
                 current.append(CGPoint(
                     x: window.x(sample.timestamp, width: size.width),

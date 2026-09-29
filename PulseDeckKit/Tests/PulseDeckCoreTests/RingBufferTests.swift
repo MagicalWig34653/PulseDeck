@@ -120,4 +120,15 @@ struct NearestSampleTests {
         #expect(index.map { buffer[$0].value } == 9)
         #expect(buffer.nearestIndex(to: instant(1)) == 0)
     }
+
+    @Test func drawingStartsWithTheSampleBeforeTheWindow() {
+        var buffer = RingBuffer<Point>(capacity: 8)
+        for second in [10, 11, 12, 13] as [UInt64] { buffer.append(Point(second)) }
+        // The window starts between 11 and 12: 11 is drawn too, clipped at the left edge.
+        #expect(buffer.drawingStartIndex(forWindowStart: instant(11.5)) == 1)
+        #expect(buffer.drawingStartIndex(forWindowStart: instant(12)) == 1)
+        #expect(buffer.drawingStartIndex(forWindowStart: instant(5)) == 0)
+        #expect(buffer.drawingStartIndex(forWindowStart: instant(20)) == 3)
+        #expect(RingBuffer<Point>(capacity: 2).drawingStartIndex(forWindowStart: instant(1)) == 0)
+    }
 }

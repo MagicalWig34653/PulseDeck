@@ -370,7 +370,7 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
   `USBSpeed`/`Device Speed`, `UsbPowerSinkAllocation` (mA), `kUSBWakePortCurrentLimit`. Drawn as a
   tree with `TreeLayout` (core). Only while the USB section is visible. L‑12.
 - **General** — foreground interval 0.5–5 s (`SamplingPolicy.foregroundIntervalRange`, history
-  capacity 121 = 60 s at 0.5 s); smooth scrolling via `TimelineView` at ≤ 30 fps, full-size charts
+  capacity 124 = 60 s at 0.5 s + edge sample + margin); smooth scrolling via `TimelineView` at ≤ 30 fps, full-size charts and the per-core grid
   only, window active, no Reduce Motion; Control held pauses publishing (snapshots buffered, then
   replayed into history).
 

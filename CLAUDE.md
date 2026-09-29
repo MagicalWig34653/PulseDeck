@@ -7,7 +7,7 @@ Public repository, licensed AGPL-3.0 (`LICENSE`, owner's choice).
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.7.0)
+## Status (last updated after release v0.7.1)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -18,6 +18,7 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | 9 Menu bar · 10 Optimization · 11 Polish · per-device sidebar | ✅ done (v0.5.0) |
 | Owner feature batch: CPU freq/uptime/P‑E, memory compression/pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Ctrl pause, refresh interval, smooth charts | ✅ done (v0.6.0, v0.6.1) |
 | Thermals (SMC temperatures on a schematic board, fans, battery health) + cheaper workflows | ✅ done (v0.7.0) |
+| Smooth per-core charts, P/E badges + legend, charts start at the left edge | ✅ done (v0.7.1) |
 
 All SPEC §39 milestones are implemented. Remaining work needs a real Mac (see *Next*).
 
@@ -72,7 +73,7 @@ The product owner approves each milestone explicitly. Ask before starting one un
 - Memory page: optional pie of memory by process (`ProcessMemoryBreakdown`, top 5 by name + rest;
   demands `.processes` only while the toggle is on). `-initialScrollAnchor bottom` opens pages scrolled
   down (screenshots).
-- `SystemHistory.capacity` = 121 (60 s at 0.5 s); `cpuFrequency` history. Foreground interval 0.5–5 s
+- `SystemHistory.capacity` = 124 (60 s at 0.5 s + the sample before the window + scroll trail + slack; charts draw from `drawingStartIndex(forWindowStart:)` so lines reach the left edge); `cpuFrequency` history. Foreground interval 0.5–5 s
   (Settings → General). Smooth scrolling: `ChartWindow(history:scrollingOver:now:)` in a
   `TimelineView(.animation(minimumInterval: 1/30))`, only full-size charts, only when the window
   `appearsActive`, not paused, no Reduce Motion. Holding Control alone pauses (`ControlKeyPause`,
@@ -169,7 +170,7 @@ screenshots run is in progress, or its final `git push` is rejected.
 - Public APIs first. Undocumented sources only with the owner's approval, labelled in the UI, with fallback.
   Approved and implemented: memory-pressure sysctl, IOAccelerator GPU stats (M6), `SystemPowerIn` (M7).
 - No shell-command polling, no private frameworks, no privileged helper, no App Sandbox (see plan §11).
-- Collection happens off the MainActor in actors. History stays bounded (`SystemHistory.capacity = 61`).
+- Collection happens off the MainActor in actors. History stays bounded (`SystemHistory.capacity = 124`).
 - Swift 6 language mode, zero warnings (CI treats warnings as errors), no force unwraps in telemetry paths,
   comments for non-obvious Darwin/IOKit behaviour, no unexplained magic numbers.
 - Tests: Swift Testing. Test doubles live only in test targets.

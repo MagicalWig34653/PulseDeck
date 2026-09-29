@@ -65,7 +65,16 @@ extension RingBuffer where Element: TimestampedSample {
     /// to the older sample.
     public func nearestIndex(to instant: MonotonicInstant) -> Int? {
         guard !isEmpty else { return nil }
-        // First index whose timestamp is >= instant.
+        let low = firstIndex(atOrAfter: instant)
+        if low == 0 { return 0 }
+        if low == count { return count - 1 }
+        let before = instant.nanoseconds - self[low - 1].timestamp.nanoseconds
+        let after = self[low].timestamp.nanoseconds - instant.nanoseconds
+        return after < before ? low : low - 1
+    }
+
+    /// First index whose timestamp is at or after `instant` (`count` if none). O(log n).
+    public func firstIndex(atOrAfter instant: MonotonicInstant) -> Int {
         var low = 0
         var high = count
         while low < high {
@@ -76,10 +85,13 @@ extension RingBuffer where Element: TimestampedSample {
                 high = mid
             }
         }
-        if low == 0 { return 0 }
-        if low == count { return count - 1 }
-        let before = instant.nanoseconds - self[low - 1].timestamp.nanoseconds
-        let after = self[low].timestamp.nanoseconds - instant.nanoseconds
-        return after < before ? low : low - 1
+        return low
+    }
+
+    /// Index of the first sample a chart starting at `start` draws: the last one before `start`
+    /// if there is one, so the line enters from the left edge (and is clipped there) instead of
+    /// beginning up to one interval into the chart. `count` if the buffer is empty.
+    public func drawingStartIndex(forWindowStart start: MonotonicInstant) -> Int {
+        Swift.max(firstIndex(atOrAfter: start) - 1, 0)
     }
 }

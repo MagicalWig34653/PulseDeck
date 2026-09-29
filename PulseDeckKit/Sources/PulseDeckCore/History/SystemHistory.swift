@@ -43,8 +43,11 @@ public struct SystemHistory: Sendable {
     /// Visible chart window (SPEC §6).
     public static let window: Duration = .seconds(60)
     /// 60 s at the fastest foreground interval (0.5 s) needs 121 samples to span the whole
-    /// window. At 1 s the buffers hold the last two minutes; memory stays bounded either way.
-    public static let capacity = 121
+    /// window. Charts also draw the sample just before the window (so lines reach the left
+    /// edge), and smooth scrolling trails the newest sample by one interval, which adds two;
+    /// one more absorbs ticks that arrive early after a policy change restarts the loop. At 1 s
+    /// the buffers hold the last two minutes; memory stays bounded either way.
+    public static let capacity = 124
 
     /// Series: 0 = user, 1 = system (fractions of all logical processors).
     public private(set) var cpu = MetricHistory(seriesCount: 2)
