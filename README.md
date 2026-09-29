@@ -53,6 +53,10 @@
 |---|---|
 | <img src="docs/images/memory-pie-dark.png" alt="Pie chart of memory by process and the memory compression chart, dark appearance"> | <img src="docs/images/disk-details-dark.png" alt="Disk page scrolled to capacity and device details, dark appearance"> |
 
+| Thermals: schematic board view | |
+|---|---|
+| <img src="docs/images/thermals-dark.png" alt="Thermals page with the schematic logic board, dark appearance"> | |
+
 | USB tree | Containers |
 |---|---|
 | <img src="docs/images/usb-light.png" alt="USB section: tree diagram of buses and devices with link speeds and allocated power"> | <img src="docs/images/containers-dark.png" alt="Containers section without a running Docker engine, dark appearance"> |
@@ -64,7 +68,7 @@
 Screenshots are captured automatically from the real app with live data on a macOS 26 runner
 (a virtual machine, hence "Apple M2 Pro (Virtual)" and the VirtIO disk) by the
 [Screenshots workflow](.github/workflows/screenshots.yml). The runner has no Wi‑Fi, Tailscale,
-Docker engine or CPU frequency sensors and only two virtual USB devices, so those parts show what
+Docker engine, temperature or CPU frequency sensors and only two virtual USB devices, so those parts show what
 they show there — for example the Containers section's "No Container Engine" state — rather than
 mock data.
 
@@ -87,6 +91,13 @@ Implemented:
   Tailscale client's local API.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity,
   available space (APFS containers counted once), bus, mount points and APFS snapshot count.
+- **Thermals** — a schematic top view of the logic board with each component (performance and
+  efficiency cores, GPU, memory, SSD, Wi‑Fi, power delivery) coloured by its temperature, the fans
+  with their speed at the sides and the battery with its health below; CPU/GPU temperature chart,
+  per-component readings, fan ranges. Read from the System Management Controller (undocumented,
+  labelled).
+- **Battery health** — maximum capacity, cycle count, full-charge and design capacity, battery
+  temperature (Energy and Thermals pages).
 - **USB** — its own section with a tree diagram: this Mac → buses → hubs → devices, connectors
   coloured and labelled by negotiated link speed, and the bus power allocated to each device (an
   allocation reported by macOS, not a measurement — labelled).

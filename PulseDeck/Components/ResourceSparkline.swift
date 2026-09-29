@@ -73,6 +73,11 @@ struct ResourceSparkline: View {
                   let gpuHistory = history.gpus[first.id] else { return nil }
             return Sparkline(history: gpuHistory, series: [ChartSeries(label: "Utilization", color: .green, value: { $0.values[0] })],
                              yAxis: .fraction, format: Format.percent)
+        case .thermals:
+            // Temperatures are read only while the Thermals page is open.
+            guard appState.history.thermals.latest?.values.first.flatMap({ $0 }) != nil else { return nil }
+            return Sparkline(history: history.thermals, series: [ChartSeries(label: "CPU", color: .red, value: { $0.values[0] })],
+                             yAxis: .automatic(minimum: 100), format: Format.temperature)
         case .energy:
             // Only where a power value can exist (portables); desktops show no sparkline.
             guard let energy = appState.latestSnapshot?.energy.value,

@@ -13,7 +13,9 @@ struct ResourceDetailView: View {
             switch item {
             case .category(.cpu):
                 CPUPerformanceView()
-            case .category(.memory):
+            case .category(.thermals):
+            return [.thermals]
+        case .category(.memory):
                 MemoryPerformanceView()
             case .category(.disks):
                 DiskPerformanceView(diskID: nil)
@@ -27,6 +29,8 @@ struct ResourceDetailView: View {
                 GPUPerformanceView()
             case .category(.energy):
                 EnergyPerformanceView()
+            case .category(.thermals):
+                ThermalsPerformanceView()
             }
         }
         .navigationTitle(Text(item.category.title))
@@ -47,6 +51,8 @@ struct ResourceDetailView: View {
         switch item {
         case .category(.cpu):
             return [.cpuFrequency]
+        case .category(.thermals):
+            return [.thermals]
         case .category(.memory):
             return showsProcessPie ? [.processes] : []
         case .networkInterface(let id):

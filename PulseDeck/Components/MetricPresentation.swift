@@ -43,6 +43,15 @@ enum Format {
     static func duration(_ seconds: Double) -> String {
         Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
     }
+    /// "54 °C".
+    static func temperature(_ celsius: Double) -> String {
+        // SMC sensors report Celsius; shown as such, whatever the locale's preferred unit.
+        String(localized: "\(celsius.formatted(.number.precision(.fractionLength(0)))) °C")
+    }
+    /// "1,850 rpm".
+    static func rpm(_ rpm: Double) -> String {
+        String(localized: "\(rpm.formatted(.number.precision(.fractionLength(0)))) rpm")
+    }
     /// "3.21 GHz", "912 MHz".
     static func frequency(_ hertz: Double) -> String {
         hertz >= 1e9
@@ -219,6 +228,16 @@ extension USBSnapshot {
     }
 }
 
+extension ThermalSnapshot {
+    /// "CPU 54 °C · 1,850 rpm".
+    var summary: String {
+        var parts: [String] = []
+        if let cpu = cpuMaximumCelsius { parts.append(String(localized: "CPU \(Format.temperature(cpu))")) }
+        if let fan = fans.value?.first { parts.append(Format.rpm(fan.actualRPM)) }
+        return parts.isEmpty ? String(localized: "Temperatures and fans") : parts.joined(separator: " · ")
+    }
+}
+
 // MARK: - Previews
 
 extension SystemSnapshot {
@@ -258,6 +277,8 @@ extension SystemSnapshot {
             energy.flatMap { energy in
                 energy.battery.map { battery in String(localized: "Battery \(Format.percent(battery.charge)) · \(battery.stateLabel)") }
             }
+        case .thermals:
+            thermals.map(\.summary)
         }
     }
 }

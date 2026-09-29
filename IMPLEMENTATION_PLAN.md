@@ -374,6 +374,17 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
   only, window active, no Reduce Motion; Control held pauses publishing (snapshots buffered, then
   replayed into history).
 
+### v0.7.0 additions
+
+- **Temperatures / fans** — SMC user client (`IOServiceOpen("AppleSMC")`, `IOConnectCallStructMethod`
+  selector 2 with the 80-byte `SMCKeyData_t`; commands 5 read bytes, 8 key by index, 9 key info).
+  Keys enumerated once (`#KEY`), temperature keys classified by component letter (`ThermalClassifier`),
+  implausible readings (outside 1–130 °C) dropped. Fans: `FNum`, `F<n>Ac/Mn/Mx/Tg`. Thermals page only.
+  L‑13.
+- **Battery health** — `AppleSmartBattery` `CycleCount`, `DesignCycleCount9C`, `DesignCapacity`,
+  `AppleRawMaxCapacity` (Intel: `MaxCapacity` in mAh), `Temperature` (0.01 °C); read together with
+  `SystemPowerIn`.
+
 ## 11. Privileges, entitlements, distribution (SPEC §37)
 
 - **No App Sandbox.** A sandboxed app cannot inspect or signal other users' processes via libproc
@@ -434,6 +445,7 @@ Current status and hand-off notes for the next session: [`CLAUDE.md`](CLAUDE.md)
 | 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | ✅ v0.5.0 (`SamplingDemand` tests; C/D measured) |
 | 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | ✅ v0.5.0 on CI VM (`docs/PERFORMANCE.md`): background budget met, no growth; foreground above budget on the VM — confirm on a Mac |
 | 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | ✅ v0.5.0; VoiceOver pass by ear needs a Mac |
+| — | Thermals | SMC temperatures on a schematic board, fans, battery health | CI green; sensor mapping needs a real Mac | ✅ v0.7.0 |
 | — | Owner feature batch | CPU frequency/uptime/P‑E, memory compression + process pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Control pause, refresh interval, smooth charts | CI green; real-Mac checks listed in `CLAUDE.md` | ✅ v0.6.0 (process pie and USB section follow-up after v0.6.0) |
 
 ---
@@ -481,6 +493,9 @@ documented; *Private* = private framework/SPI.
 | Wi‑Fi standard, rate, channel, signal | CoreWLAN `CWInterface` | Yes | None for these fields | High | Every 5 s | fields omitted |
 | Tailscale peers, per-peer traffic | Tailscale LocalAPI `/localapi/v0/status` | Undocumented (approved) | Same-user token | Medium | One local request; interface page only | `Not Available` |
 | Docker containers, stats, actions | Docker Engine API on a Unix socket | Yes (documented, versioned) | Socket owner | High | One request per running container; section only | "No Container Engine" |
+| Temperatures (per component) | SMC `T…` keys via IOKit user client | **Undocumented** (owner request, L‑13) | None | Medium (model-specific keys, grouped heuristically) | Low; Thermals page only | `Not Available` / grey component |
+| Fan speeds | SMC `FNum`, `F<n>Ac/Mn/Mx/Tg` | **Undocumented** (L‑13) | None | High where present | Low; Thermals page only | "Fanless" / `Not Available` |
+| Battery health | `AppleSmartBattery` `CycleCount`, `DesignCapacity`, `AppleRawMaxCapacity`, `Temperature` | **Undocumented** (L‑13) | None | High | With energy sampling | `Not Available` |
 | USB tree, speed, allocated power | IORegistry `IOUSB` plane (`USBSpeed`, `UsbPowerSinkAllocation`) | Yes / **Undocumented** keys (approved, L‑12) | None | High (allocation, not measurement) | Low; section only | `Not Available` / "—" |
 | Process energy | `rusage_info_v6.ri_energy_nj` / `ri_billed_energy` | SDK/unstable, semantics undocumented | as above | Unknown — needs on-device validation | included | column omitted until validated — L‑5 |
 | Thermal state (not required) | `ProcessInfo.thermalState` | Yes | None | High | Event-driven | — |

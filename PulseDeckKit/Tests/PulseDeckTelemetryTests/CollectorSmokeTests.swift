@@ -220,6 +220,20 @@ struct CollectorSmokeTests {
         }
     }
 
+    @Test func thermals() async throws {
+        let monitor = ThermalMonitor()
+        print("Thermals capability:", await monitor.capability())
+        let state = await monitor.sample(at: clock.now())
+        print("Thermals:", String(describing: state.unavailableReason))
+        if let thermals = state.value {
+            for zone in thermals.zones {
+                print("Thermal zone:", zone.zone, "max", zone.maximumCelsius, "avg", zone.averageCelsius, "sensors", zone.sensorCount)
+            }
+            print("Fans:", String(describing: thermals.fans))
+            #expect(thermals.sensors.allSatisfy { ThermalClassifier.isPlausible($0.celsius) })
+        }
+    }
+
     @Test func localHTTPClientReportsMissingSocket() {
         let result = LocalHTTPClient.send(path: "/", to: .unixSocket(path: "/tmp/pulsedeck-no-such-socket"))
         #expect(result == .failure(.connect(ENOENT)))

@@ -6,7 +6,7 @@ Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.l
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.6.0)
+## Status (last updated after release v0.7.0)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -15,7 +15,8 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
 | 6 GPU · 7 Energy · 8 Processes | ✅ done (v0.4.0) |
 | 9 Menu bar · 10 Optimization · 11 Polish · per-device sidebar | ✅ done (v0.5.0) |
-| Owner feature batch: CPU freq/uptime/P‑E, memory compression/pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Ctrl pause, refresh interval, smooth charts | ✅ done (v0.6.0) |
+| Owner feature batch: CPU freq/uptime/P‑E, memory compression/pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Ctrl pause, refresh interval, smooth charts | ✅ done (v0.6.0, v0.6.1) |
+| Thermals (SMC temperatures on a schematic board, fans, battery health) + cheaper workflows | ✅ done (v0.7.0) |
 
 All SPEC §39 milestones are implemented. Remaining work needs a real Mac (see *Next*).
 
@@ -78,6 +79,22 @@ The product owner approves each milestone explicitly. Ask before starting one un
 - Needs a real Mac: frequencies vs. `powermetrics`, Wi‑Fi fields, Tailscale auth variants (App Store
   app's group container may prompt), snapshot counts, USB allocation on real devices.
 
+### What v0.7.0 added
+- `ThermalMonitor` (SMC via `IOServiceOpen("AppleSMC")` + `IOConnectCallStructMethod`; key enumeration
+  once, `ThermalClassifier` zones; fans `FNum`/`F<n>Ac|Mn|Mx|Tg`) — L‑13. Protocol encoding/decoding is
+  `SMC` in core (80-byte `SMCKeyData_t` with explicit offsets; `flt `, `sp78`, `fpe2`, `fp88`, `ui*`).
+  `ResourceCategory.thermals` page: `LogicBoardView` (schematic, unit-rect layout), chart
+  (`SystemHistory.thermals`: hottest CPU, GPU), components, fans, battery health. Demand: detail page only;
+  the list row shows `AppState.latestThermals`.
+- `BatterySnapshot.health` (`BatteryHealth`) from `AppleSmartBattery`, read with `SystemPowerIn`;
+  `BatteryHealthSection` on Energy and Thermals.
+- **Leaner workflows** (done while the repo was private and macOS minutes ran out; the owner then made
+  it public, where hosted runners are free): `ci.yml` runs on `pull_request` and on `main` only (not on
+  branch pushes, not for `*.md`/`docs/**`), with cancel-in-progress, and builds once (`xcodebuild test`
+  with warnings as errors). So **open a (draft) PR to get CI**. `screenshots.yml`
+  takes `pages` (e.g. `thermals-dark`; `all` also does menu bar, icon, DMG). `release.yml` skips the
+  package tests on `workflow_dispatch` unless `run_tests`. Don't dispatch CI or screenshots casually.
+
 ### Next
 - Actions were blocked for a day by the account's spending limit ("recent account payments have
   failed…"); jobs that fail within seconds without a runner mean that again — only the owner can fix it.
@@ -120,17 +137,19 @@ Everything macOS-specific (collectors, SwiftUI, Xcode project, icon) is verified
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `ci.yml` | every push / PR | `swift test -warnings-as-errors` (incl. telemetry smoke tests), `xcodebuild build` with `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`, icon presence check, `xcodebuild test` |
-| `screenshots.yml` | `workflow_dispatch` (input `commit: true` pushes images to the branch) | launches the real app on a macOS 26 runner and captures `docs/images/*` (all pages, light/dark, DMG window, icon) |
-| `release.yml` | `workflow_dispatch` on `main` with input `version` (e.g. `0.4.0`), or a `v*` tag, or a published release | tests, universal Release build, DMG with background + SHA-256, creates the GitHub release (0.x = pre-release) |
+| `ci.yml` | pull requests and `main` (code changes only), manual | `swift test -warnings-as-errors` (incl. telemetry smoke tests), one `xcodebuild test` with `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`, icon presence check |
+| `screenshots.yml` | `workflow_dispatch` (input `commit: true` pushes images to the branch; `pages` selects captures) | launches the real app on a macOS 26 runner and captures `docs/images/*` (pages, light/dark; with `all` also menu bar, DMG window, icon) |
+| `release.yml` | `workflow_dispatch` on `main` with input `version` (e.g. `0.4.0`), or a `v*` tag, or a published release | (tests only for tags or `run_tests`), universal Release build, DMG with background + SHA-256, creates the GitHub release (0.x = pre-release) |
 
 The GitHub MCP tools can trigger runs (`actions_run_trigger`) and read logs (`get_job_logs`). The public
 REST API works unauthenticated through `curl` for polling run status. Always **look at the screenshots**
 (Read the PNGs) after UI changes: they have caught real bugs (inactive window, missing dark mode,
 "Zero kB/s").
 
-Typical loop: edit → local core tests → push → wait for `ci.yml` → fix compile errors from the job log →
-run `screenshots.yml` with `commit: true` → pull → review images → PR → merge → `release.yml`.
+Typical loop: edit → local core tests → push → open a draft PR (this runs `ci.yml`) → fix compile errors
+from the job log → run `screenshots.yml` with `commit: true` and only the changed `pages` → pull → review
+images → mark ready → merge → `release.yml`. The screenshots bot pushes to the branch: don't push while a
+screenshots run is in progress, or its final `git push` is rejected.
 
 ## Git / GitHub constraints in cloud sessions
 - Push only to the session's designated branch. **Tag pushes are rejected by the proxy**, so release
@@ -168,8 +187,9 @@ run `screenshots.yml` with `commit: true` → pull → review images → PR → 
   global appearance. Launch with `open -n` so the window is active.
 - `mach_task_self_` compiles fine in Swift 6 on Xcode 26.6.
 - The runner is a VM ("Apple M2 Pro (Virtual)", VirtIO disk, many mounted simulator disk images). That's expected.
-- Screenshot pages are selected with the `-initialCategory <cpu|memory|disks|network|gpu|energy>` launch preference
-  (`PreferenceKey.initialCategory`) or `-initialSection processes`; `-cpuChartMode logicalProcessors` selects the per-core view.
+- Screenshot pages are selected with the `-initialCategory <cpu|memory|disks|network|gpu|energy|thermals>` launch preference
+  (`PreferenceKey.initialCategory`) or `-initialSection <processes|containers|usb>`; `-cpuChartMode logicalProcessors`
+  selects the per-core view, `-initialScrollAnchor bottom` scrolls pages down, `-memoryProcessPie YES` shows the pie.
 - On macOS 26 `PROC_PIDTBSDINFO` fails with `EPERM` for other users' processes (not only task info).
   Use `sysctl(KERN_PROC_PID)` → `kinfo_proc` for their identity; `p_starttime` is `p_un.__p_starttime` in Swift.
 - `Result<Void, E>` is not `Equatable`: test with `try result.get()` / `#expect(throws:)`.

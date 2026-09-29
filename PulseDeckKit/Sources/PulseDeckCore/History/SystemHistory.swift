@@ -53,6 +53,9 @@ public struct SystemHistory: Sendable {
     /// Series: 0 = efficiency-cluster frequency (Hz), 1 = performance-cluster frequency (Hz).
     /// Demand-driven (CPU page only), so ticks without a sample leave no point.
     public private(set) var cpuFrequency = MetricHistory(seriesCount: 2)
+    /// Series: 0 = hottest CPU sensor (°C), 1 = hottest GPU sensor (°C). Demand-driven (Thermals
+    /// page only).
+    public private(set) var thermals = MetricHistory(seriesCount: 2)
     /// Series: 0 = used fraction, 1 = used bytes, 2 = compressed (bytes occupied by the
     /// compressor), 3 = original size of the compressed data.
     public private(set) var memory = MetricHistory(seriesCount: 4)
@@ -94,6 +97,15 @@ public struct SystemHistory: Sendable {
             ])
         case .unavailable:
             cpuFrequency.append(time, values: [nil, nil])
+        case .notSampled:
+            break
+        }
+
+        switch snapshot.thermals {
+        case .available(let thermals):
+            self.thermals.append(time, values: [thermals.cpuMaximumCelsius, thermals.zone(.gpu)?.maximumCelsius])
+        case .unavailable:
+            self.thermals.append(time, values: [nil, nil])
         case .notSampled:
             break
         }

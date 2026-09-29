@@ -123,6 +123,7 @@ public actor MonitoringEngine {
         await providers.tailscale?.invalidateBaselines()
         await providers.containers?.invalidateBaselines()
         await providers.usb?.invalidateBaselines()
+        await providers.thermals?.invalidateBaselines()
     }
 
     /// Capability of every domain. Domains without a collector are `.unsupported(.notImplemented)`.
@@ -143,6 +144,7 @@ public actor MonitoringEngine {
             .tailscale: await probe(providers.tailscale),
             .containers: await probe(providers.containers),
             .usb: await probe(providers.usb),
+            .thermals: await probe(providers.thermals),
         ]
     }
 
@@ -169,6 +171,7 @@ public actor MonitoringEngine {
         async let tailscale = Self.collect(providers.tailscale, kind: .tailscale, policy: policy, at: instant)
         async let containers = Self.collect(providers.containers, kind: .containers, policy: policy, at: instant)
         async let usb = Self.collect(providers.usb, kind: .usb, policy: policy, at: instant)
+        async let thermals = Self.collect(providers.thermals, kind: .thermals, policy: policy, at: instant)
 
         return SystemSnapshot(
             sequence: sequence,
@@ -184,7 +187,8 @@ public actor MonitoringEngine {
             cpuFrequency: await cpuFrequency,
             tailscale: await tailscale,
             containers: await containers,
-            usb: await usb
+            usb: await usb,
+            thermals: await thermals
         )
     }
 

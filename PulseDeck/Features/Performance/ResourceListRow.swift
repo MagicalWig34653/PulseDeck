@@ -72,6 +72,9 @@ struct PerformanceItemRow: View {
     /// "disk0 · R 1.2 MB/s · W 0 kB/s", "en0 · ↓ 12 kB/s ↑ 3 kB/s".
     private var preview: MetricState<String>? {
         switch item {
+        case .category(.thermals):
+            // Read only while the Thermals page is open; show the last known values.
+            return .available(appState.latestThermals?.summary ?? String(localized: "Temperatures and fans"))
         case .category(let category):
             return appState.latestSnapshot?.preview(for: category)
         case .disk(let id):
