@@ -323,7 +323,10 @@ public actor DiskMonitor: TelemetryProvider {
 
         var attributes = attrlist()
         attributes.bitmapcount = u_short(ATTR_BIT_MAP_COUNT)
-        attributes.commonattr = attrgroup_t(ATTR_CMN_NAME)
+        // Bulk calls require ATTR_CMN_RETURNED_ATTRS with the name (ATTR_BULK_REQUIRED in
+        // <sys/attr.h>); without it the kernel answers EINVAL.
+        let returnedAttributes: attrgroup_t = 0x8000_0000 // ATTR_CMN_RETURNED_ATTRS
+        attributes.commonattr = attrgroup_t(ATTR_CMN_NAME) | returnedAttributes
         let bufferSize = 64 * 1024
         var buffer = [UInt8](repeating: 0, count: bufferSize)
         var total = 0

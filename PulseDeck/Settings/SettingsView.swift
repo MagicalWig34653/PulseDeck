@@ -24,12 +24,35 @@ struct SettingsView: View {
 }
 
 private struct GeneralSettings: View {
+    @Environment(AppState.self) private var appState
+    @AppStorage(PreferenceKey.smoothChartScrolling) private var smoothChartScrolling = true
+    @AppStorage(PreferenceKey.chartGridStyle) private var chartGridStyle: ChartGridStyle = .scrolling
     @AppStorage(PreferenceKey.showMainWindowAtLaunch) private var showMainWindowAtLaunch = true
     @AppStorage(PreferenceKey.keepRunningWhenWindowCloses) private var keepRunningWhenWindowCloses = true
     @State private var loginItem = LoginItemController()
 
     var body: some View {
+        @Bindable var appState = appState
         Form {
+            Section {
+                Picker("Refresh while visible", selection: $appState.foregroundRefreshInterval) {
+                    ForEach(ForegroundRefreshInterval.allCases) { interval in
+                        Text(interval.title).tag(interval)
+                    }
+                }
+                Toggle("Smooth chart scrolling", isOn: $smoothChartScrolling)
+                Picker("Chart grid", selection: $chartGridStyle) {
+                    ForEach(ChartGridStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("Charts scroll smoothly only while the window is in front, and never with Reduce Motion. Hold Control to pause updates in the window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section {
                 Toggle("Launch at login", isOn: Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }))
                 if loginItem.requiresApproval {

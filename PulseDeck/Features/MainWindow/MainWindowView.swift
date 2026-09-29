@@ -8,6 +8,9 @@ struct MainWindowView: View {
     @AppStorage(PreferenceKey.navigationPresentation) private var presentation: NavigationPresentation = .topBar
     @SceneStorage("selectedSection") private var section: AppSection = .performance
     @SceneStorage("selectedPerformanceItem") private var item: PerformanceItem = .category(.cpu)
+    @AppStorage(PreferenceKey.smoothChartScrolling) private var smoothChartScrolling = true
+    @Environment(\.appearsActive) private var appearsActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -19,6 +22,15 @@ struct MainWindowView: View {
             }
         }
         .frame(minWidth: 720, minHeight: 460)
+        .environment(\.chartScrollInterval, chartScrollInterval)
+        .overlay(alignment: .bottom) {
+            if appState.isPaused {
+                PausedIndicator()
+                    .padding(.bottom, 14)
+                    .transition(.opacity)
+            }
+        }
+        .modifier(ControlKeyPause())
         .background {
             WindowVisibilityObserver { visibility in
                 appState.mainWindowVisibility = visibility
@@ -37,6 +49,14 @@ struct MainWindowView: View {
             appState.showsResourcePreviewsInEverySection = presentation == .sidebar
         }
         .onAppear(perform: applyInitialCategory)
+    }
+
+    /// Smooth scrolling runs only while the window is in the foreground (active and visible),
+    /// not while paused, and never with Reduce Motion.
+    private var chartScrollInterval: Double? {
+        guard smoothChartScrolling, appearsActive, !reduceMotion, !appState.isPaused,
+              appState.mainWindowVisibility == .visible else { return nil }
+        return appState.foregroundRefreshInterval.duration.secondsDouble
     }
 
     /// Optional `initialCategory` / `initialSection` preferences (e.g. launch arguments
@@ -68,6 +88,8 @@ private struct TopBarNavigation: View {
                 PerformanceView(item: $item)
             case .processes:
                 ProcessesView()
+            case .containers:
+                ContainersView()
             }
         }
         .toolbar {
@@ -99,6 +121,7 @@ private struct SidebarNavigation: View {
     private enum Entry: Hashable {
         case performance(PerformanceItem)
         case processes
+        case containers
     }
 
     private var selection: Binding<Entry?> {
@@ -106,6 +129,7 @@ private struct SidebarNavigation: View {
             switch section {
             case .performance: .performance(appState.resolve(item))
             case .processes: .processes
+            case .containers: .containers
             }
         } set: { entry in
             switch entry {
@@ -114,6 +138,8 @@ private struct SidebarNavigation: View {
                 section = .performance
             case .processes?:
                 section = .processes
+            case .containers?:
+                section = .containers
             case nil:
                 break
             }
@@ -138,6 +164,12 @@ private struct SidebarNavigation: View {
                         Image(systemName: AppSection.processes.systemImage)
                     }
                     .tag(Entry.processes)
+                    Label {
+                        Text(AppSection.containers.title)
+                    } icon: {
+                        Image(systemName: AppSection.containers.systemImage)
+                    }
+                    .tag(Entry.containers)
                 }
             }
             .navigationSplitViewColumnWidth(min: 240, ideal: 270)
@@ -147,7 +179,21 @@ private struct SidebarNavigation: View {
                 ResourceDetailView(item: appState.resolve(item))
             case .processes:
                 ProcessesView()
+            case .containers:
+                ContainersView()
             }
         }
+    }
+}
+
+/// Shown while Control is held and updates are paused.
+private struct PausedIndicator: View {
+    var body: some View {
+        Label("Updates paused — release Control to resume", systemImage: "pause.fill")
+            .font(.callout.weight(.medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .glassEffect(.regular, in: .capsule)
+            .accessibilityAddTraits(.updatesFrequently)
     }
 }

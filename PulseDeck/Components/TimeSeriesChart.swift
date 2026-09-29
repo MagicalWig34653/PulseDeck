@@ -42,8 +42,24 @@ struct TimeSeriesChart: View {
     /// Draw the plot background and border. Defaults to framed for full charts only.
     var isFramed: Bool?
 
+    @Environment(\.chartScrollInterval) private var scrollInterval
+    @AppStorage(PreferenceKey.chartGridStyle) private var gridStyle: ChartGridStyle = .scrolling
+
+    /// Smooth scrolling redraws at up to 30 frames per second — enough for motion that looks
+    /// continuous at chart speed (one sample width per interval), at a fraction of display rate.
+    private static let scrollFrameInterval = 1.0 / 30
+
     var body: some View {
-        let window = ChartWindow(history: history)
+        if let scrollInterval, !isCompact {
+            TimelineView(.animation(minimumInterval: Self.scrollFrameInterval)) { context in
+                chart(in: ChartWindow(history: history, scrollingOver: scrollInterval, now: context.date))
+            }
+        } else {
+            chart(in: ChartWindow(history: history))
+        }
+    }
+
+    private func chart(in window: ChartWindow) -> some View {
         let upperBound = upperBound(in: window)
         VStack(alignment: .leading, spacing: 4) {
             if !isCompact {
@@ -56,11 +72,14 @@ struct TimeSeriesChart: View {
                 .monospacedDigit()
             }
             ZStack {
-                ChartCanvas(history: history, series: series, window: window, upperBound: upperBound, showsGrid: !isCompact)
+                ChartCanvas(history: history, series: series, window: window, upperBound: upperBound,
+                            grid: isCompact ? nil : gridStyle)
                 if allowsHover {
                     ChartHoverOverlay(history: history, series: series, window: window, upperBound: upperBound, format: format)
                 }
             }
+            // The newest sample lies just beyond the right edge while it scrolls in.
+            .clipShape(.rect(cornerRadius: (isFramed ?? !isCompact) ? 10 : 0))
             .modifier(ChartFrame(isFramed: isFramed ?? !isCompact))
             if !isCompact {
                 HStack(spacing: 12) {
@@ -180,6 +199,20 @@ struct ChartWindow {
         start = end.advanced(by: .zero - SystemHistory.window)
     }
 
+    /// Smooth scrolling: the window trails the newest sample by one interval and slides towards
+    /// it as time passes, reaching it when the next sample is due. The newest point therefore
+    /// scrolls in from the right edge instead of the whole chart jumping once per interval. If
+    /// no new sample arrives (sleep, stopped collector), the window stops at the newest sample.
+    init(history: MetricHistory, scrollingOver interval: Double, now: Date) {
+        guard let latest = history.latest else {
+            self.init(history: history)
+            return
+        }
+        let elapsed = min(max(now.timeIntervalSince(latest.wallClock), 0), interval)
+        end = latest.timestamp.advanced(by: .milliseconds(Int64(((elapsed - interval) * 1_000).rounded())))
+        start = end.advanced(by: .zero - SystemHistory.window)
+    }
+
     var durationNanoseconds: Double { Double(end.nanoseconds(since: start)) }
 
     func contains(_ instant: MonotonicInstant) -> Bool {
@@ -205,20 +238,25 @@ private struct ChartCanvas: View {
     let series: [ChartSeries]
     let window: ChartWindow
     let upperBound: Double
-    let showsGrid: Bool
+    let grid: ChartGridStyle?
     /// Increase Contrast: thicker lines, stronger fill and grid (SPEC §31).
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var isHighContrast: Bool { contrast == .increased }
 
-    /// Horizontal grid lines at quarters, vertical lines every 10 seconds.
+    /// Simple grid: horizontal lines at quarters, vertical lines every 10 seconds.
     private static let horizontalDivisions = 4
     private static let verticalDivisions = 6
+    /// Scrolling grid (Task Manager): tenths, and a vertical line every 5 seconds of sample time.
+    private static let fineHorizontalDivisions = 10
+    private static let fineColumnSeconds: Int64 = 5
 
     var body: some View {
         Canvas { context, size in
-            if showsGrid {
-                drawGrid(in: &context, size: size)
+            switch grid {
+            case .simple?: drawGrid(in: &context, size: size)
+            case .scrolling?: drawScrollingGrid(in: &context, size: size)
+            case nil: break
             }
             for line in series where line.isDrawn {
                 draw(line, in: &context, size: size)
@@ -239,6 +277,25 @@ private struct ChartCanvas: View {
             grid.addLine(to: CGPoint(x: x, y: size.height))
         }
         context.stroke(grid, with: .color(.secondary.opacity(isHighContrast ? 0.4 : 0.15)), lineWidth: isHighContrast ? 1 : 0.5)
+    }
+
+    /// Vertical lines sit at fixed instants, so they move left with the data.
+    private func drawScrollingGrid(in context: inout GraphicsContext, size: CGSize) {
+        var grid = Path()
+        for step in 1..<Self.fineHorizontalDivisions {
+            let y = size.height * CGFloat(step) / CGFloat(Self.fineHorizontalDivisions)
+            grid.move(to: CGPoint(x: 0, y: y))
+            grid.addLine(to: CGPoint(x: size.width, y: y))
+        }
+        let column = UInt64(Self.fineColumnSeconds) * 1_000_000_000
+        var instant = (window.start.nanoseconds / column + 1) * column
+        while instant < window.end.nanoseconds {
+            let x = window.x(MonotonicInstant(nanoseconds: instant), width: size.width)
+            grid.move(to: CGPoint(x: x, y: 0))
+            grid.addLine(to: CGPoint(x: x, y: size.height))
+            instant += column
+        }
+        context.stroke(grid, with: .color(.secondary.opacity(isHighContrast ? 0.35 : 0.12)), lineWidth: isHighContrast ? 1 : 0.5)
     }
 
     private func draw(_ line: ChartSeries, in context: inout GraphicsContext, size: CGSize) {

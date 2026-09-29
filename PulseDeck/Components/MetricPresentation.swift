@@ -43,6 +43,24 @@ enum Format {
     static func duration(_ seconds: Double) -> String {
         Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
     }
+    /// "3.21 GHz", "912 MHz".
+    static func frequency(_ hertz: Double) -> String {
+        hertz >= 1e9
+            ? String(localized: "\((hertz / 1e9).formatted(.number.precision(.fractionLength(2)))) GHz")
+            : String(localized: "\((hertz / 1e6).formatted(.number.precision(.fractionLength(0)))) MHz")
+    }
+    /// "3 days, 4 hr, 12 min" since `bootTime`.
+    static func uptime(since bootTime: Date, now: Date = .now) -> String {
+        Duration.seconds(max(now.timeIntervalSince(bootTime), 0))
+            .formatted(.units(allowed: [.days, .hours, .minutes], width: .abbreviated, maximumUnitCount: 3))
+    }
+    /// "10 Gbit/s", "866.7 Mbit/s".
+    static func bitRate(_ bitsPerSecond: Double) -> String {
+        if bitsPerSecond >= 1e9 {
+            return String(localized: "\((bitsPerSecond / 1e9).formatted(.number.precision(.significantDigits(1...3)))) Gbit/s")
+        }
+        return String(localized: "\((bitsPerSecond / 1e6).formatted(.number.precision(.significantDigits(1...4)))) Mbit/s")
+    }
     /// Appends the provenance marker SPEC §19 requires for values that were not reported directly.
     static func attributed(_ value: AttributedValue<Double>, _ format: (Double) -> String) -> String {
         switch value.provenance {
@@ -79,6 +97,19 @@ extension NetworkInterfaceKind {
         case .vpnTunnel: "lock.shield"
         case .loopback: "arrow.triangle.2.circlepath"
         case .other: "network"
+        }
+    }
+}
+
+extension WiFiStandard {
+    /// "Wi‑Fi 6 (802.11ax)", "802.11g".
+    var label: String {
+        switch self {
+        case .legacy(let name): name
+        case .wifi4: String(localized: "Wi‑Fi 4 (802.11n)")
+        case .wifi5: String(localized: "Wi‑Fi 5 (802.11ac)")
+        case .wifi6: String(localized: "Wi‑Fi 6 (802.11ax)")
+        case .wifi7: String(localized: "Wi‑Fi 7 (802.11be)")
         }
     }
 }
@@ -173,6 +204,15 @@ extension BatterySnapshot {
     }
 }
 
+extension USBSnapshot {
+    var deviceCount: Int { controllers.reduce(0) { $0 + $1.deviceCount } }
+
+    /// "3 devices" / "No devices".
+    var devicesDescription: String {
+        deviceCount == 0 ? String(localized: "No devices") : String(localized: "\(deviceCount) devices")
+    }
+}
+
 // MARK: - Previews
 
 extension SystemSnapshot {
@@ -212,6 +252,8 @@ extension SystemSnapshot {
             energy.flatMap { energy in
                 energy.battery.map { battery in String(localized: "Battery \(Format.percent(battery.charge)) · \(battery.stateLabel)") }
             }
+        case .usb:
+            usb.map(\.devicesDescription)
         }
     }
 }

@@ -8,6 +8,10 @@ enum PreferenceKey {
     static let keepRunningWhenWindowCloses = "keepRunningWhenWindowCloses"
     static let menuBarMetric = "menuBarMetric"
     static let backgroundRefreshInterval = "backgroundRefreshInterval"
+    static let foregroundRefreshInterval = "foregroundRefreshInterval"
+    /// Charts scroll continuously between samples while the window is active.
+    static let smoothChartScrolling = "smoothChartScrolling"
+    static let chartGridStyle = "chartGridStyle"
     /// Disks and network interfaces shown/hidden in the Performance list (JSON).
     static let sidebarVisibility = "sidebarVisibility"
     /// Performance page to open at launch (not shown in Settings; used for screenshots).
@@ -49,6 +53,44 @@ enum BackgroundRefreshInterval: Int, CaseIterable, Identifiable {
         case .frequent: "Every 2 seconds"
         case .standard: "Every 3 seconds"
         case .economical: "Every 5 seconds (saves the most energy)"
+        }
+    }
+}
+
+/// Sampling interval while the main window or the menu bar panel is visible, in milliseconds.
+enum ForegroundRefreshInterval: Int, CaseIterable, Identifiable {
+    case fastest = 500
+    case standard = 1000
+    case relaxed = 2000
+    case slow = 5000
+
+    var id: Self { self }
+
+    var duration: Duration { .milliseconds(rawValue) }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .fastest: "Twice a second"
+        case .standard: "Every second"
+        case .relaxed: "Every 2 seconds"
+        case .slow: "Every 5 seconds"
+        }
+    }
+}
+
+/// Background grid of full-size charts.
+enum ChartGridStyle: String, CaseIterable, Identifiable {
+    /// Task Manager style: a fine grid whose vertical lines move with the data.
+    case scrolling
+    /// Quarters and fixed 10-second columns.
+    case simple
+
+    var id: Self { self }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .scrolling: "Fine, scrolling with the data"
+        case .simple: "Simple"
         }
     }
 }

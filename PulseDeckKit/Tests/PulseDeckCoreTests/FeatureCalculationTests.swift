@@ -275,3 +275,16 @@ struct FeatureDemandTests {
         #expect(snapshot.compressionRatio == 3.5)
     }
 }
+
+@Suite("Frequency history")
+struct FrequencyHistoryTests {
+    @Test func meanFrequencyIsWeightedByActivityAndSkipsIdleClusters() {
+        let clusters = [
+            ClusterFrequency(id: "PCPU", coreType: .performance, activeFrequencyHz: 3e9, activeFraction: 0.75, maximumFrequencyHz: 4e9),
+            ClusterFrequency(id: "PCPU1", coreType: .performance, activeFrequencyHz: 1e9, activeFraction: 0.25, maximumFrequencyHz: 4e9),
+            ClusterFrequency(id: "ECPU", coreType: .efficiency, activeFrequencyHz: nil, activeFraction: 0, maximumFrequencyHz: 2e9),
+        ]
+        #expect(SystemHistory.meanFrequency(of: clusters, type: .performance) == 2.5e9)
+        #expect(SystemHistory.meanFrequency(of: clusters, type: .efficiency) == nil)
+    }
+}

@@ -50,6 +50,9 @@ public struct SystemHistory: Sendable {
     public private(set) var cpu = MetricHistory(seriesCount: 2)
     /// Series: one total-utilization fraction per logical processor.
     public private(set) var cpuCores = MetricHistory(seriesCount: 0)
+    /// Series: 0 = efficiency-cluster frequency (Hz), 1 = performance-cluster frequency (Hz).
+    /// Demand-driven (CPU page only), so ticks without a sample leave no point.
+    public private(set) var cpuFrequency = MetricHistory(seriesCount: 2)
     /// Series: 0 = used fraction, 1 = used bytes, 2 = compressed (bytes occupied by the
     /// compressor), 3 = original size of the compressed data.
     public private(set) var memory = MetricHistory(seriesCount: 4)
@@ -79,6 +82,18 @@ public struct SystemHistory: Sendable {
         case .unavailable:
             self.cpu.append(time, values: [nil, nil])
             cpuCores.append(time, values: Array(repeating: nil, count: cpuCores.seriesCount))
+        case .notSampled:
+            break
+        }
+
+        switch snapshot.cpuFrequency {
+        case .available(let frequency):
+            cpuFrequency.append(time, values: [
+                Self.meanFrequency(of: frequency.clusters, type: .efficiency),
+                Self.meanFrequency(of: frequency.clusters, type: .performance),
+            ])
+        case .unavailable:
+            cpuFrequency.append(time, values: [nil, nil])
         case .notSampled:
             break
         }
@@ -121,6 +136,15 @@ public struct SystemHistory: Sendable {
             break
         }
         prune(before: time.monotonic.advanced(by: .zero - Self.window))
+    }
+
+    /// Mean active frequency of the clusters of one core type, weighted by how long each
+    /// cluster was running. `nil` if every such cluster was idle (never 0 Hz).
+    public static func meanFrequency(of clusters: [ClusterFrequency], type: CoreType) -> Double? {
+        let running = clusters.filter { $0.coreType == type && $0.activeFrequencyHz != nil && $0.activeFraction > 0 }
+        let weight = running.reduce(0) { $0 + $1.activeFraction }
+        guard weight > 0 else { return nil }
+        return running.reduce(0) { $0 + ($1.activeFrequencyHz ?? 0) * $1.activeFraction } / weight
     }
 
     static func energyValues(_ energy: EnergySnapshot) -> [Double?] {

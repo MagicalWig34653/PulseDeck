@@ -9,6 +9,7 @@ enum ResourceCategory: String, CaseIterable, Identifiable {
     case network
     case gpu
     case energy
+    case usb
 
     var id: Self { self }
 
@@ -20,6 +21,7 @@ enum ResourceCategory: String, CaseIterable, Identifiable {
         case .network: "Network Interfaces"
         case .gpu: "GPU"
         case .energy: "Energy"
+        case .usb: "USB"
         }
     }
 
@@ -31,6 +33,7 @@ enum ResourceCategory: String, CaseIterable, Identifiable {
         case .network: "network"
         case .gpu: "rectangle.3.group"
         case .energy: "bolt"
+        case .usb: "cable.connector.horizontal"
         }
     }
 
@@ -42,6 +45,7 @@ enum ResourceCategory: String, CaseIterable, Identifiable {
         case .network: .network
         case .gpu: .gpu
         case .energy: .energy
+        case .usb: .usb
         }
     }
 }

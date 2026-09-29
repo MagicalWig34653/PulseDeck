@@ -32,6 +32,18 @@ final class AppState {
         return historyStorage
     }
 
+    /// Last container list, kept like `latestProcesses` while the Containers section is shown.
+    private(set) var latestContainers: MetricState<ContainersSnapshot>? = nil
+
+    /// Last USB tree. Kept after leaving the USB page so its list entry can still show the
+    /// device count; the tree is only re-read while the page is visible.
+    private(set) var latestUSB: USBSnapshot? = nil
+
+    /// Display updates are paused while Control is held (like Task Manager). Sampling continues;
+    /// snapshots received meanwhile are applied when the pause ends, so no history is lost.
+    private(set) var isPaused = false
+    @ObservationIgnored private var pausedSnapshots: [SystemSnapshot] = []
+
     /// Last sampled process table. Kept across ticks where processes were not sampled (e.g. the
     /// tick that raced the section switch) and dropped when the Processes section is left, so a
     /// stale table is never shown and nothing large is retained in the background.
@@ -60,6 +72,9 @@ final class AppState {
             if visibleSection != .processes {
                 latestProcesses = nil
             }
+            if visibleSection != .containers {
+                latestContainers = nil
+            }
             pushPolicy()
         }
     }
@@ -67,6 +82,12 @@ final class AppState {
     /// Whether the menu bar extra's window is open.
     var isMenuBarWindowVisible = false {
         didSet { if isMenuBarWindowVisible != oldValue { pushPolicy() } }
+    }
+
+    /// Domains the visible Performance page needs beyond the list previews (CPU page → frequency,
+    /// Tailscale interface → peers, USB page → USB tree). Set by the page.
+    var detailPageDemand: Set<MetricKind> = [] {
+        didSet { if detailPageDemand != oldValue { pushPolicy() } }
     }
 
     /// A page the main window should show next, requested from outside the window (e.g. a
@@ -94,6 +115,15 @@ final class AppState {
         didSet {
             guard backgroundRefreshInterval != oldValue else { return }
             defaults.set(backgroundRefreshInterval.rawValue, forKey: PreferenceKey.backgroundRefreshInterval)
+            pushPolicy()
+        }
+    }
+
+    /// Sampling interval while the window or the menu bar panel is visible.
+    var foregroundRefreshInterval: ForegroundRefreshInterval {
+        didSet {
+            guard foregroundRefreshInterval != oldValue else { return }
+            defaults.set(foregroundRefreshInterval.rawValue, forKey: PreferenceKey.foregroundRefreshInterval)
             pushPolicy()
         }
     }
@@ -135,6 +165,7 @@ final class AppState {
         sidebarVisibility = defaults.data(forKey: PreferenceKey.sidebarVisibility)
             .flatMap { try? JSONDecoder().decode(SidebarVisibility.self, from: $0) } ?? SidebarVisibility()
         backgroundRefreshInterval = BackgroundRefreshInterval(rawValue: defaults.integer(forKey: PreferenceKey.backgroundRefreshInterval)) ?? .standard
+        foregroundRefreshInterval = ForegroundRefreshInterval(rawValue: defaults.integer(forKey: PreferenceKey.foregroundRefreshInterval)) ?? .standard
         let (stream, continuation) = AsyncStream.makeStream(of: EngineCommand.self)
         commands = stream
         commandContinuation = continuation
@@ -193,7 +224,21 @@ final class AppState {
     // MARK: - Snapshots
 
     private func receive(_ snapshot: SystemSnapshot) {
+        if isPaused {
+            // Bounded: older snapshots than the history holds would be dropped anyway.
+            pausedSnapshots.append(snapshot)
+            if pausedSnapshots.count > SystemHistory.capacity {
+                pausedSnapshots.removeFirst(pausedSnapshots.count - SystemHistory.capacity)
+            }
+            // The menu bar keeps updating; the pause is about the window's content.
+            updateMenuBarLabel(from: snapshot)
+            return
+        }
         historyStorage.append(snapshot)
+        publish(snapshot)
+    }
+
+    private func publish(_ snapshot: SystemSnapshot) {
         historyRevision &+= 1
         latestSnapshot = snapshot
         if case .notSampled = snapshot.processes {
@@ -201,15 +246,38 @@ final class AppState {
         } else if visibleSection == .processes {
             latestProcesses = snapshot.processes
         }
+        if case .notSampled = snapshot.containers {
+            // Keep the previous list.
+        } else if visibleSection == .containers {
+            latestContainers = snapshot.containers
+        }
+        if let usb = snapshot.usb.value {
+            latestUSB = usb
+        }
         updateMenuBarLabel()
     }
 
-    private func updateMenuBarLabel() {
+    /// Pauses or resumes display updates (Control held down).
+    func setPaused(_ paused: Bool) {
+        guard paused != isPaused else { return }
+        isPaused = paused
+        guard !paused else { return }
+        let pending = pausedSnapshots
+        pausedSnapshots = []
+        for snapshot in pending {
+            historyStorage.append(snapshot)
+        }
+        if let newest = pending.last {
+            publish(newest)
+        }
+    }
+
+    private func updateMenuBarLabel(from snapshot: SystemSnapshot? = nil) {
         let text: String? = switch menuBarMetric {
         case .none:
             nil
         default:
-            latestSnapshot.flatMap { menuBarMetric.value(in: $0).value } ?? Self.placeholder
+            (snapshot ?? latestSnapshot).flatMap { menuBarMetric.value(in: $0).value } ?? Self.placeholder
         }
         if text != menuBarLabelText {
             menuBarLabelText = text
@@ -227,6 +295,7 @@ final class AppState {
         let section: ObservationState.Section? = switch visibleSection {
         case .performance?: .performance
         case .processes?: .processes
+        case .containers?: .containers
         case nil: nil
         }
         let state = ObservationState(
@@ -234,9 +303,14 @@ final class AppState {
             visibleSection: section,
             showsResourcePreviewsInEverySection: showsResourcePreviewsInEverySection,
             isMenuBarPanelVisible: isMenuBarWindowVisible,
-            menuBarMetricKind: menuBarMetric.requiredMetricKind
+            menuBarMetricKind: menuBarMetric.requiredMetricKind,
+            detailPageDemand: detailPageDemand
         )
-        return SamplingDemand.policy(for: state, backgroundInterval: .seconds(backgroundRefreshInterval.rawValue))
+        return SamplingDemand.policy(
+            for: state,
+            foregroundInterval: foregroundRefreshInterval.duration,
+            backgroundInterval: .seconds(backgroundRefreshInterval.rawValue)
+        )
     }
 
     private func pushPolicy() {
