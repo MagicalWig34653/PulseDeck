@@ -20,6 +20,13 @@ public actor DiskMonitor: TelemetryProvider {
         var size: UInt64?
         var bytesRead: UInt64?
         var bytesWritten: UInt64?
+        var bus: String?
+    }
+
+    /// Volume details refreshed with free space.
+    private struct VolumeDetails: Sendable {
+        var mountPoints: [String]
+        var snapshotCount: MetricState<Int>
     }
 
     /// Free space changes slowly and querying it touches the file system, so it is refreshed
@@ -38,11 +45,13 @@ public actor DiskMonitor: TelemetryProvider {
         var connection: DiskConnection
         var isRemovable: Bool
         var size: UInt64?
+        var bus: String?
     }
 
     private var tracker = CounterRateTracker<String>()
     private var descriptions: [UInt64: DiskDescription] = [:]
     private var availableSpace: [String: MetricState<UInt64>] = [:]
+    private var volumeDetails: [String: VolumeDetails] = [:]
     private var availableSpaceDevices: Set<String> = []
     private var availableSpaceReadAt: MonotonicInstant?
 
@@ -79,7 +88,11 @@ public actor DiskMonitor: TelemetryProvider {
                 writeBytesPerSecond: rates[1],
                 totalBytesRead: disk.bytesRead.map { .available($0) } ?? .unavailable(.transientFailure("no driver statistics")),
                 totalBytesWritten: disk.bytesWritten.map { .available($0) } ?? .unavailable(.transientFailure("no driver statistics")),
-                activeTime: .unavailable(.noPublicAPI)
+                activeTime: .unavailable(.noPublicAPI),
+                bus: disk.bus,
+                mountPoints: volumeDetails[disk.bsdName]?.mountPoints ?? [],
+                snapshotCount: volumeDetails[disk.bsdName]?.snapshotCount ?? .unavailable(.awaitingBaseline),
+                snapshotBytes: .unavailable(.noPublicAPI)
             ))
         }
         tracker.retainOnly(names)
@@ -155,7 +168,8 @@ public actor DiskMonitor: TelemetryProvider {
             isRemovable: description.isRemovable,
             size: description.size,
             bytesRead: (statistics?[Self.bytesReadKey] as? NSNumber)?.uint64Value,
-            bytesWritten: (statistics?[Self.bytesWrittenKey] as? NSNumber)?.uint64Value
+            bytesWritten: (statistics?[Self.bytesWrittenKey] as? NSNumber)?.uint64Value,
+            bus: description.bus
         )
     }
 
@@ -177,7 +191,9 @@ public actor DiskMonitor: TelemetryProvider {
             name: productName.flatMap { $0.isEmpty ? nil : $0 } ?? registryName(media) ?? bsdName,
             connection: connection(from: protocolCharacteristics),
             isRemovable: (property(media, "Removable") as? Bool) ?? false,
-            size: (property(media, "Size") as? NSNumber)?.uint64Value
+            size: (property(media, "Size") as? NSNumber)?.uint64Value,
+            // e.g. "PCI-Express", "USB", "Thunderbolt", "SATA", "Apple Fabric", "Virtual Interface".
+            bus: (protocolCharacteristics?["Physical Interconnect"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 
@@ -240,8 +256,14 @@ public actor DiskMonitor: TelemetryProvider {
 
         let volumes = Self.mountedVolumes()
         var result: [String: MetricState<UInt64>] = [:]
+        var details: [String: VolumeDetails] = [:]
         for device in devices {
             let media = Self.descendantMediaNames(ofDisk: device)
+            let deviceVolumes = volumes.filter { media.contains($0.device) }
+            details[device] = VolumeDetails(
+                mountPoints: Self.orderedMountPoints(deviceVolumes.map(\.mountPoint)),
+                snapshotCount: Self.snapshotCount(of: deviceVolumes)
+            )
             // APFS volumes in one container share its free space: count each container once.
             var perContainer: [String: UInt64] = [:]
             for volume in volumes where media.contains(volume.device) {
@@ -252,10 +274,86 @@ public actor DiskMonitor: TelemetryProvider {
             result[device] = perContainer.isEmpty ? .unavailable(.notApplicable) : .available(perContainer.values.reduce(0, +))
         }
         availableSpace = result
+        volumeDetails = details
+    }
+
+    /// "/" first, then alphabetically.
+    private static func orderedMountPoints(_ mountPoints: [String]) -> [String] {
+        Array(Set(mountPoints)).sorted { lhs, rhs in
+            if lhs == "/" || rhs == "/" { return lhs == "/" }
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+    }
+
+    // MARK: - APFS snapshots
+
+    private typealias SnapshotList = @convention(c) (Int32, UnsafeMutablePointer<attrlist>?, UnsafeMutableRawPointer?, Int, UInt32) -> Int32
+
+    /// Snapshots of the disk's mounted APFS volumes, each volume counted once (the boot volume
+    /// is mounted from a snapshot of itself, `disk3s1s1` → volume `disk3s1`).
+    private static func snapshotCount(of volumes: [(device: String, mountPoint: String, fileSystem: String)]) -> MetricState<Int> {
+        let apfs = volumes.filter { $0.fileSystem == "apfs" }
+        guard !apfs.isEmpty else { return .unavailable(.notApplicable) }
+        var seen = Set<String>()
+        var total = 0
+        var failure: UnavailableReason?
+        for volume in apfs where seen.insert(volumeName(volume.device)).inserted {
+            switch countSnapshots(atMountPoint: volume.mountPoint) {
+            case .available(let count): total += count
+            case .unavailable(let reason): failure = failure ?? reason
+            case .notSampled: break
+            }
+        }
+        if total == 0, let failure { return .unavailable(failure) }
+        return .available(total)
+    }
+
+    /// Counts snapshots with `fs_snapshot_list(2)` (public, `<sys/snapshot.h>`), requesting only
+    /// names. The call returns the number of entries per batch and 0 when done. Looked up at run
+    /// time so the build does not depend on the header being part of Swift's Darwin module.
+    private static func countSnapshots(atMountPoint path: String) -> MetricState<Int> {
+        // RTLD_DEFAULT is ((void *)-2) on Darwin.
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "fs_snapshot_list") else {
+            return .unavailable(.noPublicAPI)
+        }
+        let list = unsafeBitCast(symbol, to: SnapshotList.self)
+        let descriptor = open(path, O_RDONLY)
+        guard descriptor >= 0 else { return .unavailable(reason(for: errno)) }
+        defer { close(descriptor) }
+
+        var attributes = attrlist()
+        attributes.bitmapcount = u_short(ATTR_BIT_MAP_COUNT)
+        attributes.commonattr = attrgroup_t(ATTR_CMN_NAME)
+        let bufferSize = 64 * 1024
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+        var total = 0
+        // Bounded in case a file system never reports the end of the list.
+        let maximumBatches = 1_000
+        for _ in 0..<maximumBatches {
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                list(descriptor, &attributes, bytes.baseAddress, bytes.count, 0)
+            }
+            if count == 0 { return .available(total) }
+            guard count > 0 else { return total > 0 ? .available(total) : .unavailable(reason(for: errno)) }
+            total += Int(count)
+        }
+        return .available(total)
+    }
+
+    private static func reason(for error: Int32) -> UnavailableReason {
+        error == EPERM || error == EACCES ? .permissionDenied : .transientFailure("errno \(error)")
+    }
+
+    /// `disk3s1s1` → `disk3s1`; `disk3s5` stays.
+    private static func volumeName(_ bsdName: String) -> String {
+        let parts = bsdName.split(separator: "s", omittingEmptySubsequences: false)
+        // "disk3s1s1" splits into ["di", "k3", "1", "1"].
+        guard parts.count > 3 else { return bsdName }
+        return parts.dropLast().joined(separator: "s")
     }
 
     /// Mounted file systems backed by a `/dev/diskN…` node.
-    private static func mountedVolumes() -> [(device: String, mountPoint: String)] {
+    private static func mountedVolumes() -> [(device: String, mountPoint: String, fileSystem: String)] {
         let count = getfsstat(nil, 0, MNT_NOWAIT)
         guard count > 0 else { return [] }
         // `statfs` is a plain C struct, so the kernel can fill uninitialized storage directly.
@@ -267,8 +365,9 @@ public actor DiskMonitor: TelemetryProvider {
         return entries.compactMap { entry in
             let from = withUnsafeBytes(of: entry.f_mntfromname) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
             let on = withUnsafeBytes(of: entry.f_mntonname) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
+            let type = withUnsafeBytes(of: entry.f_fstypename) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
             guard from.hasPrefix(devicePrefix) else { return nil }
-            return (String(from.dropFirst(devicePrefix.count)), on)
+            return (String(from.dropFirst(devicePrefix.count)), on, type)
         }
     }
 

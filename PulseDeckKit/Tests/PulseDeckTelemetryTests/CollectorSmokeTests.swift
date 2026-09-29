@@ -18,9 +18,13 @@ struct CollectorSmokeTests {
         let cpu = try #require(await monitor.sample(at: clock.now()).value)
         print("CPU:", cpu.info.modelName ?? "?", "logical", cpu.info.logicalProcessorCount,
               "physical", cpu.info.physicalCoreCount ?? -1, "levels", cpu.info.performanceLevels.map(\.name),
-              "total", cpu.total, "user", cpu.user, "system", cpu.system)
+              "total", cpu.total, "user", cpu.user, "system", cpu.system,
+              "coreTypes", cpu.info.coreTypes, "boot", String(describing: cpu.info.bootTime))
         #expect(cpu.cores.count == cpu.info.logicalProcessorCount)
         #expect((0...1).contains(cpu.total))
+        #expect(cpu.info.coreTypes.isEmpty || cpu.info.coreTypes.count == cpu.info.logicalProcessorCount)
+        let bootTime = try #require(cpu.info.bootTime)
+        #expect(bootTime < Date())
         #expect(abs(cpu.user + cpu.system + cpu.idle - 1) < 1e-9)
         await monitor.invalidateBaselines()
         #expect(await monitor.sample(at: clock.now()).unavailableReason == .awaitingBaseline)
@@ -29,7 +33,7 @@ struct CollectorSmokeTests {
     @Test func memory() async throws {
         let memory = try #require(await MemoryMonitor().sample(at: clock.now()).value)
         print("Memory: total", memory.physicalTotal, "used", memory.used, "app", memory.appMemory,
-              "wired", memory.wired, "compressed", memory.compressed, "cached", memory.cachedFiles,
+              "wired", memory.wired, "compressed", memory.compressed, "compressedOriginal", memory.compressedOriginal, "cached", memory.cachedFiles,
               "swap", String(describing: memory.swap.value), "pressure", String(describing: memory.pressure))
         #expect(memory.physicalTotal > 0)
         #expect(memory.used > 0 && memory.used <= memory.physicalTotal)
@@ -46,7 +50,8 @@ struct CollectorSmokeTests {
             print("Interface:", interface.id, interface.displayName ?? "-", interface.kind, "up", interface.isUp,
                   "rx", String(describing: interface.receivedBytesPerSecond.value),
                   "tx", String(describing: interface.sentBytesPerSecond.value),
-                  "totals", interface.totalBytesReceived, interface.totalBytesSent)
+                  "totals", interface.totalBytesReceived, interface.totalBytesSent,
+                  "link", String(describing: interface.linkSpeedBitsPerSecond), "wifi", String(describing: interface.wifi))
         }
         print("Primary interface:", network.primaryInterfaceID ?? "none", "addresses", network.primaryInterface?.addresses ?? [])
         let loopback = try #require(network.interfaces.first { $0.id == "lo0" })
@@ -66,7 +71,8 @@ struct CollectorSmokeTests {
                   "capacity", String(describing: disk.capacityBytes.value),
                   "available", String(describing: disk.availableBytes),
                   "read/s", String(describing: disk.readBytesPerSecond.value),
-                  "write/s", String(describing: disk.writeBytesPerSecond.value))
+                  "write/s", String(describing: disk.writeBytesPerSecond.value),
+                  "bus", disk.bus ?? "-", "mounts", disk.mountPoints, "snapshots", String(describing: disk.snapshotCount))
         }
         #expect(!disks.isEmpty)
         #expect(disks.contains { $0.readBytesPerSecond.value != nil })
@@ -181,6 +187,42 @@ struct CollectorSmokeTests {
         child.waitUntilExit()
         #expect(child.terminationReason == .uncaughtSignal)
         #expect(child.terminationStatus == SIGTERM)
+    }
+
+    @Test func cpuFrequency() async throws {
+        let monitor = CPUFrequencyMonitor()
+        print("CPU frequency capability:", await monitor.capability())
+        _ = await monitor.sample(at: clock.now())
+        try await Task.sleep(for: .milliseconds(500))
+        let state = await monitor.sample(at: clock.now())
+        print("CPU frequency:", String(describing: state))
+        for cluster in state.value?.clusters ?? [] {
+            #expect((0...1).contains(cluster.activeFraction))
+            if let hz = cluster.activeFrequencyHz { #expect(hz > 1e8 && hz < 7e9) }
+        }
+    }
+
+    @Test func tailscaleAndContainers() async throws {
+        let tailscale = await TailscaleMonitor().sample(at: clock.now())
+        print("Tailscale:", String(describing: tailscale.unavailableReason), "peers", tailscale.value?.peers.count ?? -1)
+        let containers = await ContainerMonitor().sample(at: clock.now())
+        print("Containers:", String(describing: containers.unavailableReason), containers.value.map { "\($0.engineName) \($0.engineVersion ?? "?") \($0.containers.count)" } ?? "-")
+    }
+
+    @Test func usb() async throws {
+        let usb = try #require(await USBMonitor().sample(at: clock.now()).value)
+        for controller in usb.controllers {
+            print("USB controller:", controller.name, "devices", controller.deviceCount, "fastest", String(describing: controller.fastestSpeed))
+        }
+        // The allocation keys are undocumented: log what this machine exposes.
+        for line in USBMonitor.diagnosticKeys() {
+            print("USB keys:", line)
+        }
+    }
+
+    @Test func localHTTPClientReportsMissingSocket() {
+        let result = LocalHTTPClient.send(path: "/", to: .unixSocket(path: "/tmp/pulsedeck-no-such-socket"))
+        #expect(result == .failure(.connect(ENOENT)))
     }
 
     @Test func engineWithProductionCollectors() async throws {

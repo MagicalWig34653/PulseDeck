@@ -14,12 +14,13 @@ let package = Package(
     ],
     targets: [
         .target(name: "PulseDeckCore"),
-        // Darwin collectors (Mach, sysctl, libproc, IOKit, Metal, SystemConfiguration). Sources are compiled on
+        // Darwin collectors (Mach, sysctl, libproc, IOKit, Metal, SystemConfiguration, CoreWLAN). Sources are compiled on
         // macOS only; all calculations they rely on live in PulseDeckCore.
         .target(
             name: "PulseDeckTelemetry",
             dependencies: ["PulseDeckCore"],
             linkerSettings: [
+                .linkedFramework("CoreWLAN", .when(platforms: [.macOS])),
                 .linkedFramework("IOKit", .when(platforms: [.macOS])),
                 .linkedFramework("Metal", .when(platforms: [.macOS])),
                 .linkedFramework("SystemConfiguration", .when(platforms: [.macOS])),
