@@ -7,7 +7,7 @@ Public repository, licensed AGPL-3.0 (`LICENSE`, owner's choice).
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.7.1)
+## Status (last updated after release v0.7.2)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -19,6 +19,7 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | Owner feature batch: CPU freq/uptime/P‑E, memory compression/pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Ctrl pause, refresh interval, smooth charts | ✅ done (v0.6.0, v0.6.1) |
 | Thermals (SMC temperatures on a schematic board, fans, battery health) + cheaper workflows | ✅ done (v0.7.0) |
 | Smooth per-core charts, P/E badges + legend, charts start at the left edge | ✅ done (v0.7.1) |
+| Core types fallback (`CoreTypeResolver`: device tree, else `hw.perflevel` counts, E-cores first) | ✅ done (v0.7.2) |
 
 All SPEC §39 milestones are implemented. Remaining work needs a real Mac (see *Next*).
 

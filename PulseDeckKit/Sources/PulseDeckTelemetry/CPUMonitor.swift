@@ -82,12 +82,14 @@ public actor CPUMonitor: TelemetryProvider {
         }
         let logical = Sysctl.integer("hw.logicalcpu", as: Int32.self).map(Int.init)
             ?? ProcessInfo.processInfo.processorCount
+        let coreTypes = CoreTypeResolver.resolve(deviceTree: readDeviceTreeCPUs(), levels: levels, logicalCount: logical)
         return CPUInfo(
             modelName: Sysctl.string("machdep.cpu.brand_string"),
             logicalProcessorCount: logical,
             physicalCoreCount: Sysctl.integer("hw.physicalcpu", as: Int32.self).map(Int.init),
             performanceLevels: levels,
-            coreTypes: readCoreTypes(logicalCount: logical),
+            coreTypes: coreTypes?.types ?? [],
+            coreTypeSource: coreTypes?.source,
             bootTime: readBootTime()
         )
     }
@@ -99,33 +101,46 @@ public actor CPUMonitor: TelemetryProvider {
         return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_usec) / microsecondsPerSecond)
     }
 
-    /// Core type per logical processor from the device tree (`IODeviceTree:/cpus/cpuN`, properties
-    /// `logical-cpu-id` and `cluster-type` = "E"/"P"). The keys are undocumented; if any processor
-    /// is missing, no types are reported and the UI does not color cores.
-    private static func readCoreTypes(logicalCount: Int) -> [CoreType] {
+    /// The processor nodes of the device tree (`IODeviceTree:/cpus/cpuN`) with their undocumented
+    /// `logical-cpu-id`, `cpu-id` and `cluster-type` ("E"/"P") properties. Which of them exist
+    /// varies by chip; `CoreTypeResolver` decides what is usable and falls back to the documented
+    /// `hw.perflevel` counts.
+    private static func readDeviceTreeCPUs() -> [DeviceTreeCPU] {
         let cpus = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/cpus")
         guard cpus != 0 else { return [] }
         defer { IOObjectRelease(cpus) }
         var iterator: io_iterator_t = 0
         guard IORegistryEntryGetChildIterator(cpus, "IODeviceTree", &iterator) == KERN_SUCCESS else { return [] }
         defer { IOObjectRelease(iterator) }
-        var types: [Int: CoreType] = [:]
+        var nodes: [DeviceTreeCPU] = []
         while case let cpu = IOIteratorNext(iterator), cpu != 0 {
             defer { IOObjectRelease(cpu) }
-            guard let idData = IORegistryEntryCreateCFProperty(cpu, "logical-cpu-id" as CFString, kCFAllocatorDefault, 0)?
-                    .takeRetainedValue() as? Data, idData.count >= MemoryLayout<UInt32>.size,
-                  let typeData = IORegistryEntryCreateCFProperty(cpu, "cluster-type" as CFString, kCFAllocatorDefault, 0)?
-                    .takeRetainedValue() as? Data, let first = typeData.first
-            else { continue }
-            let id = Int(idData.prefix(MemoryLayout<UInt32>.size).reversed().reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
-            switch UnicodeScalar(first) {
-            case "E": types[id] = .efficiency
-            case "P": types[id] = .performance
-            default: break
+            var name = [CChar](repeating: 0, count: MemoryLayout<io_name_t>.size)
+            let nodeName = IORegistryEntryGetName(cpu, &name) == KERN_SUCCESS
+                ? String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) : nil
+            // Only processor nodes ("cpu<n>"): /cpus may also hold cluster or other children.
+            if let nodeName, !(nodeName.hasPrefix("cpu") && Int(nodeName.dropFirst(3)) != nil) { continue }
+            let clusterType = data(cpu, "cluster-type").map {
+                String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self)
             }
+            nodes.append(DeviceTreeCPU(
+                logicalID: littleEndianInteger(data(cpu, "logical-cpu-id")),
+                cpuID: littleEndianInteger(data(cpu, "cpu-id")),
+                name: nodeName,
+                clusterType: clusterType
+            ))
         }
-        guard types.count == logicalCount else { return [] }
-        return (0..<logicalCount).compactMap { types[$0] }
+        return nodes
+    }
+
+    private static func data(_ entry: io_registry_entry_t, _ key: String) -> Data? {
+        IORegistryEntryCreateCFProperty(entry, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Data
+    }
+
+    /// Device-tree integers are 32-bit little-endian cells.
+    private static func littleEndianInteger(_ data: Data?) -> Int? {
+        guard let data, data.count >= MemoryLayout<UInt32>.size else { return nil }
+        return Int(data.prefix(MemoryLayout<UInt32>.size).reversed().reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
     }
 }
 #endif
