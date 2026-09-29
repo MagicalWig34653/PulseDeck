@@ -14,6 +14,7 @@
   <a href="https://github.com/MagicalWig34653/PulseDeck/releases/latest"><img src="https://img.shields.io/github/v/release/MagicalWig34653/PulseDeck?include_prereleases&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-blue" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6-orange" alt="Swift 6">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
 </p>
 
 ---
@@ -227,10 +228,20 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 Alternatively run the Release workflow manually on `main` with a version (e.g. `0.1.0`); it tags
-that commit and publishes the release. Publishing a release from the GitHub UI also attaches a
+that commit and publishes the release (it skips the tests the merged pull request already passed,
+unless `run_tests` is set). Publishing a release from the GitHub UI also attaches a
 DMG. `0.x` versions are marked as pre-releases.
 
 ## Privacy
 
-All telemetry stays on your Mac. PulseDeck has no analytics, makes no network requests and never
-transmits process names or system statistics.
+All telemetry stays on your Mac. PulseDeck has no analytics, makes no requests to the internet and
+never transmits process names or system statistics. The only connections it opens are to local
+services on the same Mac — the Docker engine's socket and the Tailscale client's local API — and
+only while their pages are shown.
+
+## License
+
+PulseDeck is free software: you can redistribute it and/or modify it under the terms of the
+[GNU Affero General Public License v3.0](LICENSE) as published by the Free Software Foundation.
+It is distributed in the hope that it will be useful, but without any warranty; see the license
+for details.

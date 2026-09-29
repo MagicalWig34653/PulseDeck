@@ -1,6 +1,7 @@
 # PulseDeck — handoff notes for new sessions
 
 Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.linolaske.PulseDeck`.
+Public repository, licensed AGPL-3.0 (`LICENSE`, owner's choice).
 
 **Read first:** [`SPEC.md`](SPEC.md) is authoritative. [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
