@@ -15,9 +15,11 @@ public struct CPUInfo: Hashable, Sendable {
     public var physicalCoreCount: Int?
     /// Performance levels (P/E clusters) where the OS reports them.
     public var performanceLevels: [PerformanceLevel]
-    /// Core type per logical processor index (undocumented IORegistry `cluster-type`); empty when
-    /// unknown, in which case the UI does not color cores by type.
+    /// Core type per logical processor index (`CoreTypeResolver`); empty when unknown, in which
+    /// case the UI does not color cores by type.
     public var coreTypes: [CoreType]
+    /// How `coreTypes` was determined; `nil` when it is empty.
+    public var coreTypeSource: CoreTypeSource?
     /// Wall-clock boot time (`kern.boottime`), for uptime.
     public var bootTime: Date?
 
@@ -33,12 +35,13 @@ public struct CPUInfo: Hashable, Sendable {
         }
     }
 
-    public init(modelName: String?, logicalProcessorCount: Int, physicalCoreCount: Int?, performanceLevels: [PerformanceLevel], coreTypes: [CoreType] = [], bootTime: Date? = nil) {
+    public init(modelName: String?, logicalProcessorCount: Int, physicalCoreCount: Int?, performanceLevels: [PerformanceLevel], coreTypes: [CoreType] = [], coreTypeSource: CoreTypeSource? = nil, bootTime: Date? = nil) {
         self.modelName = modelName
         self.logicalProcessorCount = logicalProcessorCount
         self.physicalCoreCount = physicalCoreCount
         self.performanceLevels = performanceLevels
         self.coreTypes = coreTypes
+        self.coreTypeSource = coreTypes.isEmpty ? nil : coreTypeSource
         self.bootTime = bootTime
     }
 

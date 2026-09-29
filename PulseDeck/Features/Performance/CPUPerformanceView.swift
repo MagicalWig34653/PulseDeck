@@ -81,6 +81,10 @@ struct CPUPerformanceView: View {
                     LogicalProcessorGrid(history: appState.history.cpuCores, coreTypes: coreTypes)
                 }
 
+                if mode != .overall, state?.value?.info.coreTypeSource == .performanceLevelOrder {
+                    SourceNote(text: "Core types are derived from the number of performance and efficiency cores that macOS reports, assuming efficiency cores are numbered first.")
+                }
+
                 frequencySection
 
                 DetailSection(title: "Utilization") {

@@ -19,7 +19,7 @@ struct CollectorSmokeTests {
         print("CPU:", cpu.info.modelName ?? "?", "logical", cpu.info.logicalProcessorCount,
               "physical", cpu.info.physicalCoreCount ?? -1, "levels", cpu.info.performanceLevels.map(\.name),
               "total", cpu.total, "user", cpu.user, "system", cpu.system,
-              "coreTypes", cpu.info.coreTypes, "boot", String(describing: cpu.info.bootTime))
+              "coreTypes", cpu.info.coreTypes, "source", String(describing: cpu.info.coreTypeSource), "boot", String(describing: cpu.info.bootTime))
         #expect(cpu.cores.count == cpu.info.logicalProcessorCount)
         #expect((0...1).contains(cpu.total))
         #expect(cpu.info.coreTypes.isEmpty || cpu.info.coreTypes.count == cpu.info.logicalProcessorCount)
