@@ -6,7 +6,7 @@ Native macOS 26 system monitor (Swift 6, SwiftUI, menu bar app). Bundle ID `de.l
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.5.0)
+## Status (last updated after release v0.6.0)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -15,6 +15,7 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | Extra: interface IP addresses, hide never-used interfaces, HIG polish | ✅ done (v0.3.0) |
 | 6 GPU · 7 Energy · 8 Processes | ✅ done (v0.4.0) |
 | 9 Menu bar · 10 Optimization · 11 Polish · per-device sidebar | ✅ done (v0.5.0) |
+| Owner feature batch: CPU freq/uptime/P‑E, memory compression/pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Ctrl pause, refresh interval, smooth charts | ✅ done (v0.6.0) |
 
 All SPEC §39 milestones are implemented. Remaining work needs a real Mac (see *Next*).
 
@@ -52,6 +53,26 @@ The product owner approves each milestone explicitly. Ask before starting one un
 - M11: Launch at Login (`System/LoginItemController.swift`, `SMAppService.mainApp`; state is read from
   the system, not stored), VoiceOver Audio Graphs (`accessibilityChartDescriptor`), Increase Contrast
   chart styling, `CategoryUnavailableView` error states, spoken menu bar metric.
+
+### What v0.6.0 added
+- Collectors (all demand-driven via `ObservationState.detailPageDemand`, set by `ResourceDetailView`):
+  `CPUFrequencyMonitor` (private IOReport via dlopen + pmgr tables, L‑11; CPU page),
+  `TailscaleMonitor` (LocalAPI `/localapi/v0/status`: unix socket, or TCP port + sameuserproof token;
+  Tailscale interface page), `ContainerMonitor` + `ContainerControl` (Docker Engine API on
+  Colima/Docker sockets; Containers section = `AppSection.containers`), `USBMonitor` (IOUSB plane,
+  `USBSpeed`, `UsbPowerSinkAllocation` mA — L‑12; `ResourceCategory.usb`). `LocalHTTPClient` does the
+  socket HTTP; parsing (`HTTPResponse`, `TailscaleStatusTracker`, `DockerStatsTracker`) is in core.
+- Existing collectors: core types (`IODeviceTree:/cpus` `cluster-type`), `kern.boottime`, compressor
+  original size, disk bus / mount points / `fs_snapshot_list` count (needs `ATTR_CMN_RETURNED_ATTRS`,
+  else EINVAL; snapshot bytes L‑10), `ifi_baudrate` link speed, CoreWLAN Wi‑Fi (no location permission
+  needed for PHY mode/rate/RSSI/channel).
+- `SystemHistory.capacity` = 121 (60 s at 0.5 s); `cpuFrequency` history. Foreground interval 0.5–5 s
+  (Settings → General). Smooth scrolling: `ChartWindow(history:scrollingOver:now:)` in a
+  `TimelineView(.animation(minimumInterval: 1/30))`, only full-size charts, only when the window
+  `appearsActive`, not paused, no Reduce Motion. Holding Control alone pauses (`ControlKeyPause`,
+  `AppState.setPaused` buffers snapshots and replays them).
+- Needs a real Mac: frequencies vs. `powermetrics`, Wi‑Fi fields, Tailscale auth variants (App Store
+  app's group container may prompt), snapshot counts, USB allocation on real devices.
 
 ### Next
 - Actions were blocked for a day by the account's spending limit ("recent account payments have

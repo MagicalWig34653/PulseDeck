@@ -1,4 +1,5 @@
 #if os(macOS)
+import CoreWLAN
 import Darwin
 import Foundation
 import PulseDeckCore
@@ -19,6 +20,7 @@ public actor NetworkMonitor: TelemetryProvider {
         var flags: Int32
         var bytesReceived: UInt64
         var bytesSent: UInt64
+        var baudRate: UInt64
     }
 
     private struct SystemConfigurationInfo {
@@ -40,6 +42,8 @@ public actor NetworkMonitor: TelemetryProvider {
     /// Local addresses per interface, refreshed together with the primary interface.
     private var addresses: [String: [String]] = [:]
     private var addressingReadAt: MonotonicInstant?
+    /// Wi‑Fi link details per interface, refreshed together with the addresses.
+    private var wifiLinks: [String: WiFiLink] = [:]
 
     public init() {
         store = SCDynamicStoreCreate(nil, "de.linolaske.PulseDeck.NetworkMonitor" as CFString, nil, nil)
@@ -70,22 +74,28 @@ public actor NetworkMonitor: TelemetryProvider {
             let rates = tracker.update(key: item.name, generation: UInt64(item.index),
                                        counters: [item.bytesReceived, item.bytesSent], at: instant)
             let info = configuration[item.name]
+            let interfaceAddresses = addresses[item.name] ?? []
+            let kind = NetworkInterfaceClassifier.classify(
+                bsdName: item.name,
+                interfaceType: item.type,
+                isLoopback: item.flags & IFF_LOOPBACK != 0,
+                systemConfigurationType: info?.type,
+                displayName: info?.displayName,
+                addresses: interfaceAddresses
+            )
             interfaces.append(NetworkInterfaceSnapshot(
                 id: item.name,
                 displayName: info?.displayName,
-                kind: NetworkInterfaceClassifier.classify(
-                    bsdName: item.name,
-                    interfaceType: item.type,
-                    isLoopback: item.flags & IFF_LOOPBACK != 0,
-                    systemConfigurationType: info?.type,
-                    displayName: info?.displayName
-                ),
+                kind: kind,
                 isUp: item.flags & IFF_UP != 0 && item.flags & IFF_RUNNING != 0,
                 receivedBytesPerSecond: rates[0],
                 sentBytesPerSecond: rates[1],
                 totalBytesReceived: item.bytesReceived,
                 totalBytesSent: item.bytesSent,
-                addresses: addresses[item.name] ?? []
+                addresses: interfaceAddresses,
+                // Tunnels and loopback report 0 (no link); Wi‑Fi reports its current link rate.
+                linkSpeedBitsPerSecond: item.baudRate > 0 && kind != .loopback ? item.baudRate : nil,
+                wifi: kind == .wifi ? wifiLinks[item.name] : nil
             ))
         }
         tracker.retainOnly(names)
@@ -144,7 +154,8 @@ public actor NetworkMonitor: TelemetryProvider {
                     type: message.ifm_data.ifi_type,
                     flags: message.ifm_flags,
                     bytesReceived: message.ifm_data.ifi_ibytes,
-                    bytesSent: message.ifm_data.ifi_obytes
+                    bytesSent: message.ifm_data.ifi_obytes,
+                    baudRate: message.ifm_data.ifi_baudrate
                 ))
             }
         }
@@ -196,6 +207,55 @@ public actor NetworkMonitor: TelemetryProvider {
         addressingReadAt = instant
         addresses = Self.readAddresses()
         refreshPrimaryInterface()
+        wifiLinks = Self.readWiFiLinks()
+    }
+
+    // MARK: - CoreWLAN
+
+    /// Link details of every Wi‑Fi interface. These properties do not need Location Services
+    /// permission (only the network name and BSSID do, and they are not read).
+    private static func readWiFiLinks() -> [String: WiFiLink] {
+        let client = CWWiFiClient.shared()
+        var result: [String: WiFiLink] = [:]
+        for interface in client.interfaces() ?? [] {
+            guard let name = interface.interfaceName, interface.powerOn() else { continue }
+            let phyMode = interface.activePHYMode()
+            // CWPHYMode.modeNone (0): not associated.
+            guard phyMode.rawValue != 0 else { continue }
+            let rate = interface.transmitRate()
+            let rssi = interface.rssiValue()
+            let noise = interface.noiseMeasurement()
+            result[name] = WiFiLink(
+                standard: WiFiStandard(phyModeRawValue: phyMode.rawValue),
+                transmitRateMbps: rate > 0 ? rate : nil,
+                // 0 dBm means "no measurement".
+                rssi: rssi != 0 ? rssi : nil,
+                noise: noise != 0 ? noise : nil,
+                channel: interface.wlanChannel().map(channelDescription)
+            )
+        }
+        return result
+    }
+
+    /// "36 (5 GHz, 80 MHz)". Band and width map `CWChannelBand` (1 = 2.4, 2 = 5, 3 = 6 GHz) and
+    /// `CWChannelWidth` (1 = 20, 2 = 40, 3 = 80, 4 = 160 MHz) raw values.
+    private static func channelDescription(_ channel: CWChannel) -> String {
+        let band: String? = switch channel.channelBand.rawValue {
+        case 1: "2.4 GHz"
+        case 2: "5 GHz"
+        case 3: "6 GHz"
+        default: nil
+        }
+        let width: String? = switch channel.channelWidth.rawValue {
+        case 1: "20 MHz"
+        case 2: "40 MHz"
+        case 3: "80 MHz"
+        case 4: "160 MHz"
+        case 5: "320 MHz"
+        default: nil
+        }
+        let details = [band, width].compactMap { $0 }
+        return details.isEmpty ? "\(channel.channelNumber)" : "\(channel.channelNumber) (\(details.joined(separator: ", ")))"
     }
 
     /// Local IPv4/IPv6 addresses per interface from `getifaddrs(3)`, rendered numerically with

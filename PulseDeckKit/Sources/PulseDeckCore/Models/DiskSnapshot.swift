@@ -26,8 +26,16 @@ public struct DiskSnapshot: Hashable, Sendable, Identifiable {
     public var totalBytesWritten: MetricState<UInt64>
     /// Fraction of time busy in `0...1`. See TECHNICAL_LIMITATIONS.md L‑3.
     public var activeTime: MetricState<Double>
+    /// Physical interconnect as reported by the driver, e.g. "PCI-Express", "USB", "Thunderbolt".
+    public var bus: String?
+    /// Mount points of the disk's mounted volumes.
+    public var mountPoints: [String]
+    /// APFS snapshots on the disk's mounted volumes (`fs_snapshot_list`).
+    public var snapshotCount: MetricState<Int>
+    /// Space held only by snapshots. No public API reports it (L‑10).
+    public var snapshotBytes: MetricState<UInt64>
 
-    public init(id: String, name: String, connection: DiskConnection, isRemovable: Bool, capacityBytes: MetricState<UInt64>, availableBytes: MetricState<UInt64>, readBytesPerSecond: MetricState<Double>, writeBytesPerSecond: MetricState<Double>, totalBytesRead: MetricState<UInt64>, totalBytesWritten: MetricState<UInt64>, activeTime: MetricState<Double>) {
+    public init(id: String, name: String, connection: DiskConnection, isRemovable: Bool, capacityBytes: MetricState<UInt64>, availableBytes: MetricState<UInt64>, readBytesPerSecond: MetricState<Double>, writeBytesPerSecond: MetricState<Double>, totalBytesRead: MetricState<UInt64>, totalBytesWritten: MetricState<UInt64>, activeTime: MetricState<Double>, bus: String? = nil, mountPoints: [String] = [], snapshotCount: MetricState<Int> = .notSampled, snapshotBytes: MetricState<UInt64> = .unavailable(.noPublicAPI)) {
         self.id = id
         self.name = name
         self.connection = connection
@@ -39,5 +47,9 @@ public struct DiskSnapshot: Hashable, Sendable, Identifiable {
         self.totalBytesRead = totalBytesRead
         self.totalBytesWritten = totalBytesWritten
         self.activeTime = activeTime
+        self.bus = bus
+        self.mountPoints = mountPoints
+        self.snapshotCount = snapshotCount
+        self.snapshotBytes = snapshotBytes
     }
 }

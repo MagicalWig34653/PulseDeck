@@ -14,11 +14,15 @@ public struct SamplingPolicy: Hashable, Sendable {
     /// SPEC §6 default foreground interval.
     public static let defaultForegroundInterval: Duration = .seconds(1)
     public static let defaultBackgroundInterval: Duration = .seconds(3)
+    /// Foreground intervals the user can choose (Settings → General).
+    public static let foregroundIntervalRange: ClosedRange<Duration> = .milliseconds(500) ... .seconds(5)
     /// Fraction of the interval the timer may be deferred so the OS can coalesce wakeups.
     public static let timerToleranceFraction = 0.1
 
     public var mode: Mode
-    public var foregroundInterval: Duration
+    public var foregroundInterval: Duration {
+        didSet { foregroundInterval = Self.clampForeground(foregroundInterval) }
+    }
     public var backgroundInterval: Duration {
         didSet { backgroundInterval = Self.clampBackground(backgroundInterval) }
     }
@@ -33,7 +37,7 @@ public struct SamplingPolicy: Hashable, Sendable {
         demand: Set<MetricKind> = []
     ) {
         self.mode = mode
-        self.foregroundInterval = foregroundInterval
+        self.foregroundInterval = Self.clampForeground(foregroundInterval)
         self.backgroundInterval = Self.clampBackground(backgroundInterval)
         self.demand = demand
     }
@@ -66,6 +70,10 @@ public struct SamplingPolicy: Hashable, Sendable {
     public func shouldSample(_ kind: MetricKind) -> Bool {
         guard mode != .suspended else { return false }
         return MetricKind.alwaysSampled.contains(kind) || demand.contains(kind)
+    }
+
+    private static func clampForeground(_ interval: Duration) -> Duration {
+        min(max(interval, foregroundIntervalRange.lowerBound), foregroundIntervalRange.upperBound)
     }
 
     private static func clampBackground(_ interval: Duration) -> Duration {

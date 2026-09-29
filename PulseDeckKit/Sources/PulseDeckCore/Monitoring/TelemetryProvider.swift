@@ -27,6 +27,10 @@ public struct TelemetryProviders: Sendable {
     public var gpu: (any TelemetryProvider<GPUSnapshot>)?
     public var energy: (any TelemetryProvider<EnergySnapshot>)?
     public var processes: (any TelemetryProvider<[ProcessSnapshot]>)?
+    public var cpuFrequency: (any TelemetryProvider<CPUFrequencySnapshot>)?
+    public var tailscale: (any TelemetryProvider<TailscaleSnapshot>)?
+    public var containers: (any TelemetryProvider<ContainersSnapshot>)?
+    public var usb: (any TelemetryProvider<USBSnapshot>)?
 
     public init(
         cpu: (any TelemetryProvider<CPUSnapshot>)? = nil,
@@ -35,7 +39,11 @@ public struct TelemetryProviders: Sendable {
         network: (any TelemetryProvider<NetworkSnapshot>)? = nil,
         gpu: (any TelemetryProvider<GPUSnapshot>)? = nil,
         energy: (any TelemetryProvider<EnergySnapshot>)? = nil,
-        processes: (any TelemetryProvider<[ProcessSnapshot]>)? = nil
+        processes: (any TelemetryProvider<[ProcessSnapshot]>)? = nil,
+        cpuFrequency: (any TelemetryProvider<CPUFrequencySnapshot>)? = nil,
+        tailscale: (any TelemetryProvider<TailscaleSnapshot>)? = nil,
+        containers: (any TelemetryProvider<ContainersSnapshot>)? = nil,
+        usb: (any TelemetryProvider<USBSnapshot>)? = nil
     ) {
         self.cpu = cpu
         self.memory = memory
@@ -44,6 +52,10 @@ public struct TelemetryProviders: Sendable {
         self.gpu = gpu
         self.energy = energy
         self.processes = processes
+        self.cpuFrequency = cpuFrequency
+        self.tailscale = tailscale
+        self.containers = containers
+        self.usb = usb
     }
 
     /// No collectors at all. Every metric is reported as not implemented.

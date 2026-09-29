@@ -77,6 +77,9 @@ jobs:
           capture energy-light false -navigationPresentation topBar -initialCategory energy
           capture processes-light false -navigationPresentation topBar -initialSection processes
           capture processes-dark true -navigationPresentation sidebar -initialSection processes
+          capture memory-pie-dark true -navigationPresentation topBar -initialCategory memory -memoryCompositionStyle pie
+          capture usb-light false -navigationPresentation topBar -initialCategory usb
+          capture containers-dark true -navigationPresentation topBar -initialSection containers
           set_dark_mode false
 
       - name: Capture menu bar panel

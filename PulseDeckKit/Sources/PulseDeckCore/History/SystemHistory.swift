@@ -42,15 +42,20 @@ public struct MetricHistory: Sendable {
 public struct SystemHistory: Sendable {
     /// Visible chart window (SPEC §6).
     public static let window: Duration = .seconds(60)
-    /// 60 one-second intervals need 61 samples to span the whole window.
-    public static let capacity = 61
+    /// 60 s at the fastest foreground interval (0.5 s) needs 121 samples to span the whole
+    /// window. At 1 s the buffers hold the last two minutes; memory stays bounded either way.
+    public static let capacity = 121
 
     /// Series: 0 = user, 1 = system (fractions of all logical processors).
     public private(set) var cpu = MetricHistory(seriesCount: 2)
     /// Series: one total-utilization fraction per logical processor.
     public private(set) var cpuCores = MetricHistory(seriesCount: 0)
-    /// Series: 0 = used fraction, 1 = used bytes.
-    public private(set) var memory = MetricHistory(seriesCount: 2)
+    /// Series: 0 = efficiency-cluster frequency (Hz), 1 = performance-cluster frequency (Hz).
+    /// Demand-driven (CPU page only), so ticks without a sample leave no point.
+    public private(set) var cpuFrequency = MetricHistory(seriesCount: 2)
+    /// Series: 0 = used fraction, 1 = used bytes, 2 = compressed (bytes occupied by the
+    /// compressor), 3 = original size of the compressed data.
+    public private(set) var memory = MetricHistory(seriesCount: 4)
     /// Per interface (BSD name). Series: 0 = received B/s, 1 = sent B/s.
     public private(set) var network: [String: MetricHistory] = [:]
     /// Per disk (BSD name). Series: 0 = read B/s, 1 = written B/s.
@@ -81,11 +86,24 @@ public struct SystemHistory: Sendable {
             break
         }
 
+        switch snapshot.cpuFrequency {
+        case .available(let frequency):
+            cpuFrequency.append(time, values: [
+                Self.meanFrequency(of: frequency.clusters, type: .efficiency),
+                Self.meanFrequency(of: frequency.clusters, type: .performance),
+            ])
+        case .unavailable:
+            cpuFrequency.append(time, values: [nil, nil])
+        case .notSampled:
+            break
+        }
+
         switch snapshot.memory {
         case .available(let memory):
-            self.memory.append(time, values: [memory.usedFraction, Double(memory.used)])
+            self.memory.append(time, values: [memory.usedFraction, Double(memory.used), Double(memory.compressed),
+                                              memory.compressedOriginal > 0 ? Double(memory.compressedOriginal) : nil])
         case .unavailable:
-            self.memory.append(time, values: [nil, nil])
+            self.memory.append(time, values: [nil, nil, nil, nil])
         case .notSampled:
             break
         }
@@ -118,6 +136,15 @@ public struct SystemHistory: Sendable {
             break
         }
         prune(before: time.monotonic.advanced(by: .zero - Self.window))
+    }
+
+    /// Mean active frequency of the clusters of one core type, weighted by how long each
+    /// cluster was running. `nil` if every such cluster was idle (never 0 Hz).
+    public static func meanFrequency(of clusters: [ClusterFrequency], type: CoreType) -> Double? {
+        let running = clusters.filter { $0.coreType == type && $0.activeFrequencyHz != nil && $0.activeFraction > 0 }
+        let weight = running.reduce(0) { $0 + $1.activeFraction }
+        guard weight > 0 else { return nil }
+        return running.reduce(0) { $0 + ($1.activeFrequencyHz ?? 0) * $1.activeFraction } / weight
     }
 
     static func energyValues(_ energy: EnergySnapshot) -> [Double?] {

@@ -1,6 +1,7 @@
 #if os(macOS)
 import Darwin
 import Foundation
+import IOKit
 import PulseDeckCore
 
 /// CPU utilization from per-processor scheduler ticks (SPEC §13).
@@ -85,8 +86,46 @@ public actor CPUMonitor: TelemetryProvider {
             modelName: Sysctl.string("machdep.cpu.brand_string"),
             logicalProcessorCount: logical,
             physicalCoreCount: Sysctl.integer("hw.physicalcpu", as: Int32.self).map(Int.init),
-            performanceLevels: levels
+            performanceLevels: levels,
+            coreTypes: readCoreTypes(logicalCount: logical),
+            bootTime: readBootTime()
         )
+    }
+
+    /// `kern.boottime`: wall-clock time of boot (`struct timeval`).
+    private static func readBootTime() -> Date? {
+        guard let time = Sysctl.structure("kern.boottime", initial: timeval()), time.tv_sec > 0 else { return nil }
+        let microsecondsPerSecond = 1e6
+        return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_usec) / microsecondsPerSecond)
+    }
+
+    /// Core type per logical processor from the device tree (`IODeviceTree:/cpus/cpuN`, properties
+    /// `logical-cpu-id` and `cluster-type` = "E"/"P"). The keys are undocumented; if any processor
+    /// is missing, no types are reported and the UI does not color cores.
+    private static func readCoreTypes(logicalCount: Int) -> [CoreType] {
+        let cpus = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/cpus")
+        guard cpus != 0 else { return [] }
+        defer { IOObjectRelease(cpus) }
+        var iterator: io_iterator_t = 0
+        guard IORegistryEntryGetChildIterator(cpus, "IODeviceTree", &iterator) == KERN_SUCCESS else { return [] }
+        defer { IOObjectRelease(iterator) }
+        var types: [Int: CoreType] = [:]
+        while case let cpu = IOIteratorNext(iterator), cpu != 0 {
+            defer { IOObjectRelease(cpu) }
+            guard let idData = IORegistryEntryCreateCFProperty(cpu, "logical-cpu-id" as CFString, kCFAllocatorDefault, 0)?
+                    .takeRetainedValue() as? Data, idData.count >= MemoryLayout<UInt32>.size,
+                  let typeData = IORegistryEntryCreateCFProperty(cpu, "cluster-type" as CFString, kCFAllocatorDefault, 0)?
+                    .takeRetainedValue() as? Data, let first = typeData.first
+            else { continue }
+            let id = Int(idData.prefix(MemoryLayout<UInt32>.size).reversed().reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
+            switch UnicodeScalar(first) {
+            case "E": types[id] = .efficiency
+            case "P": types[id] = .performance
+            default: break
+            }
+        }
+        guard types.count == logicalCount else { return [] }
+        return (0..<logicalCount).compactMap { types[$0] }
     }
 }
 #endif

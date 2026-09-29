@@ -63,6 +63,22 @@ struct NetworkPerformanceView: View {
                             StatisticView(label: "Interface", value: .available(selected.id))
                             StatisticView(label: "Status", value: .available(selected.isUp ? String(localized: "Connected") : String(localized: "Inactive")))
                         }
+                        DetailSection(title: "Link") {
+                            StatisticView(label: selected.kind == .wifi ? "Link Rate" : "Link Speed",
+                                          value: selected.linkSpeedBitsPerSecond.map { .available(Format.bitRate(Double($0))) } ?? .unavailable(.notApplicable),
+                                          help: "Speed negotiated with the switch or access point, as reported by the network driver.")
+                            if let wifi = selected.wifi {
+                                StatisticView(label: "Wi‑Fi Standard", value: wifi.standard.map { .available($0.label) } ?? .unavailable(.transientFailure("unknown PHY mode")))
+                                StatisticView(label: "Transmit Rate", value: wifi.transmitRateMbps.map { .available(Format.bitRate($0 * 1e6)) } ?? .unavailable(.transientFailure("no rate")))
+                                StatisticView(label: "Channel", value: wifi.channel.map { .available($0) } ?? .unavailable(.transientFailure("no channel")))
+                                StatisticView(label: "Signal", value: wifi.rssi.map { rssi in
+                                    .available(wifi.noise.map { String(localized: "\(rssi) dBm (noise \($0) dBm)") } ?? String(localized: "\(rssi) dBm"))
+                                })
+                            }
+                        }
+                        if selected.isTailscale {
+                            TailscaleSection(state: appState.latestSnapshot?.tailscale)
+                        }
                     }
                 }
                 .padding(20)

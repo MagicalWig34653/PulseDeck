@@ -68,6 +68,16 @@ struct DiskPerformanceView: View {
                                           help: "Capacity minus available space; includes partitions that are not mounted.")
                             StatisticView(label: "Removable", value: .available(selected.isRemovable ? String(localized: "Yes") : String(localized: "No")))
                         }
+                        DetailSection(title: "Device") {
+                            StatisticView(label: "Bus", value: selected.bus.map { .available($0) } ?? .unavailable(.unsupportedHardware),
+                                          help: "Physical interconnect reported by the storage driver.")
+                            StatisticView(label: "Mount Point", value: Self.mountPoint(selected),
+                                          help: Self.mountPointsHelp(selected))
+                            StatisticView(label: "Snapshots", value: selected.snapshotCount.map { String($0) },
+                                          help: "APFS snapshots (for example Time Machine local snapshots) on the disk's mounted volumes.")
+                            StatisticView(label: "Snapshot Space", value: selected.snapshotBytes.map(Format.storage),
+                                          help: "macOS provides no public API for the space held only by snapshots.")
+                        }
                     }
                 }
                 .padding(20)
@@ -88,6 +98,17 @@ struct DiskPerformanceView: View {
         disk.readBytesPerSecond.flatMap { read in
             disk.writeBytesPerSecond.map { written in "R \(Format.rate(read))  W \(Format.rate(written))" }
         }
+    }
+
+    /// The first mount point ("/" first), with the count of the others.
+    private static func mountPoint(_ disk: DiskSnapshot) -> MetricState<String> {
+        guard let first = disk.mountPoints.first else { return .unavailable(.notApplicable) }
+        let others = disk.mountPoints.count - 1
+        return .available(others > 0 ? String(localized: "\(first) + \(others) more") : first)
+    }
+
+    private static func mountPointsHelp(_ disk: DiskSnapshot) -> LocalizedStringResource {
+        disk.mountPoints.count > 1 ? "\(disk.mountPoints.joined(separator: "\n"))" : "Where the disk's volume is mounted."
     }
 
     private static func used(_ disk: DiskSnapshot) -> MetricState<String> {

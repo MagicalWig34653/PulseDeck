@@ -57,7 +57,8 @@ public actor MemoryMonitor: TelemetryProvider {
             purgeable: UInt64(stats.purgeable_count),
             compressor: UInt64(stats.compressor_page_count),
             internalPages: UInt64(stats.internal_page_count),
-            externalPages: UInt64(stats.external_page_count)
+            externalPages: UInt64(stats.external_page_count),
+            uncompressedInCompressor: UInt64(stats.total_uncompressed_pages_in_compressor)
         )
     }
 

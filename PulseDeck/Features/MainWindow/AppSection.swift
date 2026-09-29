@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// The two primary sections (SPEC §8).
+/// The primary sections (SPEC §8), plus Containers (local Docker containers, e.g. via Colima).
 enum AppSection: String, CaseIterable, Identifiable {
     case performance
     case processes
+    case containers
 
     var id: Self { self }
 
@@ -11,6 +12,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .performance: "Performance"
         case .processes: "Processes"
+        case .containers: "Containers"
         }
     }
 
@@ -18,6 +20,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .performance: "gauge.with.dots.needle.33percent"
         case .processes: "list.bullet.rectangle"
+        case .containers: "shippingbox"
         }
     }
 }
