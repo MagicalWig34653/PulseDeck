@@ -178,11 +178,11 @@ private struct LogicBoardView: View {
         }
         blocks += [
             Block(zone: .gpu, frame: CGRect(x: 0.29, y: 0.4, width: 0.26, height: 0.18)),
-            Block(zone: .memory, frame: CGRect(x: 0.15, y: 0.18, width: 0.11, height: 0.4)),
+            Block(zone: .memory, frame: CGRect(x: 0.15, y: 0.14, width: 0.11, height: 0.36)),
             Block(zone: .storage, frame: CGRect(x: 0.6, y: 0.1, width: 0.17, height: 0.2)),
             Block(zone: .wireless, frame: CGRect(x: 0.6, y: 0.33, width: 0.17, height: 0.14), isCompact: true),
             Block(zone: .power, frame: CGRect(x: 0.6, y: 0.5, width: 0.17, height: 0.14), isCompact: true),
-            Block(zone: .ambient, frame: CGRect(x: 0.15, y: 0.6, width: 0.11, height: 0.07), isCompact: true),
+            Block(zone: .ambient, frame: CGRect(x: 0.15, y: 0.52, width: 0.11, height: 0.1), isCompact: true),
             Block(zone: .enclosure, frame: CGRect(x: 0.8, y: 0.72, width: 0.16, height: 0.12), isCompact: true),
         ]
         return blocks
