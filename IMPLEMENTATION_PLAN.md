@@ -341,6 +341,39 @@ Navigation (SPEC §8): `NavigationPresentation` (`topBar` default, `sidebar`), p
   confirmation dialogs, `EPERM` surfaced as an alert. Show in Finder:
   `NSWorkspace.activateFileViewerSelecting`. Network/energy columns: L‑4, L‑5.
 
+### v0.6.0 additions (owner feature batch)
+
+- **CPU frequency** — private IOReport (`dlopen("/usr/lib/libIOReport.dylib")`, never linked):
+  group "CPU Stats", subgroup "CPU Complex Performance States" per cluster; state residencies ×
+  frequencies from `IODeviceTree:/arm-io/pmgr` `voltage-states1-sram` (E) / `voltage-states5-sram` (P).
+  Average while running, idle states (`IDLE`, `OFF`, `DOWN`) excluded; implausible tables rejected
+  (`CPUFrequencyCalculator`). Only while the CPU page is visible. L‑11.
+- **Core types / uptime** — `IODeviceTree:/cpus` children `logical-cpu-id` + `cluster-type` ("E"/"P");
+  `kern.boottime`.
+- **Memory compression** — `vm_statistics64.total_uncompressed_pages_in_compressor` (original size)
+  vs. `compressor_page_count`. **Memory by process** — `ProcessMemoryBreakdown` (top 5 by name +
+  rest, physical footprint); samples processes only while the pie chart is switched on.
+- **Disk details** — bus from `Protocol Characteristics` → `Physical Interconnect`; mount points from
+  `getfsstat`; snapshot count from `fs_snapshot_list(2)` per mounted APFS volume (attribute list must
+  include `ATTR_CMN_RETURNED_ATTRS`), refreshed with free space every 30 s. Snapshot size: L‑10.
+- **Link speed / Wi‑Fi** — `if_data64.ifi_baudrate`; CoreWLAN `activePHYMode`, `transmitRate`,
+  `rssiValue`, `noiseMeasurement`, `wlanChannel` (no Location Services needed for these).
+- **Tailscale** — classification by address (`fd7a:115c:a1e0::/48`, or CGNAT 100.64/10 on `utun`);
+  peers from the LocalAPI `GET /localapi/v0/status` over `/var/run/tailscaled.socket` or the loopback
+  port + same-user token of the standalone/App Store app (`LocalHTTPClient`, 2 s timeout). Only while
+  the Tailscale interface page is visible.
+- **Containers** — Docker Engine API on the first existing socket (`DOCKER_HOST`, Colima profiles,
+  Docker Desktop, `/var/run/docker.sock`): `/containers/json?all=1`, one-shot stats per running
+  container, `/version`; POST start/stop/restart (`ContainerControl`, 30 s timeout). Only while the
+  Containers section is visible.
+- **USB** — IORegistry `IOUSB` plane: controllers → `IOUSBHostDevice`s (hub = `bDeviceClass` 9),
+  `USBSpeed`/`Device Speed`, `UsbPowerSinkAllocation` (mA), `kUSBWakePortCurrentLimit`. Drawn as a
+  tree with `TreeLayout` (core). Only while the USB section is visible. L‑12.
+- **General** — foreground interval 0.5–5 s (`SamplingPolicy.foregroundIntervalRange`, history
+  capacity 121 = 60 s at 0.5 s); smooth scrolling via `TimelineView` at ≤ 30 fps, full-size charts
+  only, window active, no Reduce Motion; Control held pauses publishing (snapshots buffered, then
+  replayed into history).
+
 ## 11. Privileges, entitlements, distribution (SPEC §37)
 
 - **No App Sandbox.** A sandboxed app cannot inspect or signal other users' processes via libproc
@@ -401,6 +434,7 @@ Current status and hand-off notes for the next session: [`CLAUDE.md`](CLAUDE.md)
 | 9 | Menu Bar | popover content, menu bar metric, adaptive demand | reduced background sampling verified | ✅ v0.5.0 (`SamplingDemand` tests; C/D measured) |
 | 10 | Optimization | Instruments A–D, fixes | budgets met, no growth | ✅ v0.5.0 on CI VM (`docs/PERFORMANCE.md`): background budget met, no growth; foreground above budget on the VM — confirm on a Mac |
 | 11 | Polish | accessibility, Launch at Login (`SMAppService.mainApp`), error states | VoiceOver pass | ✅ v0.5.0; VoiceOver pass by ear needs a Mac |
+| — | Owner feature batch | CPU frequency/uptime/P‑E, memory compression + process pie, disk bus/mounts/snapshots, link speed/Wi‑Fi, Tailscale, Containers, USB tree, Control pause, refresh interval, smooth charts | CI green; real-Mac checks listed in `CLAUDE.md` | ✅ v0.6.0 (process pie and USB section follow-up after v0.6.0) |
 
 ---
 
@@ -438,5 +472,15 @@ documented; *Private* = private framework/SPI.
 | Process CPU %, threads, memory | `proc_pidinfo(PROC_PIDTASKINFO)`, `proc_pid_rusage(RUSAGE_INFO_V6)` (`ri_phys_footprint`) | SDK/unstable | as above | High | Medium | `Not Available` per cell |
 | Process disk read/write | `proc_pid_rusage` `ri_diskio_bytesread/written` | SDK/unstable | as above | High | included in above call | `Not Available` |
 | Process network | NetworkStatistics.framework (nettop) | **Private** | — | — | — | column omitted — L‑4 |
+| CPU cluster frequency | IOReport "CPU Complex Performance States" + pmgr voltage-state tables | **Private** (approved, L‑11) | None | Medium (needs real-Mac validation) | Low; CPU page only | `Not Available` |
+| CPU core types, boot time | `IODeviceTree:/cpus` `cluster-type`; `kern.boottime` | Undocumented keys / Yes | None | High (static) | Once | no P/E colours / `Not Available` |
+| Memory compressed original size | `vm_statistics64.total_uncompressed_pages_in_compressor` | Yes (public header) | None | High | Very low | omitted |
+| Disk bus, mount points | `Physical Interconnect`; `getfsstat` | Yes | None | High | Every 30 s | `Not Available` |
+| APFS snapshot count / size | `fs_snapshot_list(2)` / — | Yes / none | None (may be refused per volume) | High / — | Every 30 s | `Not Available` — L‑10 for size |
+| Link speed | `if_data64.ifi_baudrate` | Yes | None | High (driver value) | included in network sysctl | `Not Available` |
+| Wi‑Fi standard, rate, channel, signal | CoreWLAN `CWInterface` | Yes | None for these fields | High | Every 5 s | fields omitted |
+| Tailscale peers, per-peer traffic | Tailscale LocalAPI `/localapi/v0/status` | Undocumented (approved) | Same-user token | Medium | One local request; interface page only | `Not Available` |
+| Docker containers, stats, actions | Docker Engine API on a Unix socket | Yes (documented, versioned) | Socket owner | High | One request per running container; section only | "No Container Engine" |
+| USB tree, speed, allocated power | IORegistry `IOUSB` plane (`USBSpeed`, `UsbPowerSinkAllocation`) | Yes / **Undocumented** keys (approved, L‑12) | None | High (allocation, not measurement) | Low; section only | `Not Available` / "—" |
 | Process energy | `rusage_info_v6.ri_energy_nj` / `ri_billed_energy` | SDK/unstable, semantics undocumented | as above | Unknown — needs on-device validation | included | column omitted until validated — L‑5 |
 | Thermal state (not required) | `ProcessInfo.thermalState` | Yes | None | High | Event-driven | — |
