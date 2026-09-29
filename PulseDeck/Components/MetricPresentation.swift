@@ -208,8 +208,14 @@ extension USBSnapshot {
     var deviceCount: Int { controllers.reduce(0) { $0 + $1.deviceCount } }
 
     /// "3 devices" / "No devices".
-    var devicesDescription: String {
-        deviceCount == 0 ? String(localized: "No devices") : String(localized: "\(deviceCount) devices")
+    var devicesDescription: String { Self.devicesDescription(count: deviceCount) }
+
+    static func devicesDescription(count: Int) -> String {
+        switch count {
+        case 0: String(localized: "No devices")
+        case 1: String(localized: "1 device")
+        default: String(localized: "\(count) devices")
+        }
     }
 }
 

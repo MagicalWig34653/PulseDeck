@@ -74,7 +74,7 @@ struct PerformanceItemRow: View {
         switch item {
         case .category(.usb):
             // The tree is read only while the USB page is open; show the last known count.
-            return appState.latestUSB.map { .available($0.devicesDescription) }
+            return .available(appState.latestUSB?.devicesDescription ?? String(localized: "Buses and devices"))
         case .category(let category):
             return appState.latestSnapshot?.preview(for: category)
         case .disk(let id):

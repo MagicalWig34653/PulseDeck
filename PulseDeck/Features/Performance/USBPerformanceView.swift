@@ -20,7 +20,7 @@ struct USBPerformanceView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     DetailHeader(
                         title: String(localized: "USB"),
-                        subtitle: snapshot.map { String(localized: "\($0.controllers.count) buses") },
+                        subtitle: snapshot.map { $0.controllers.count == 1 ? String(localized: "1 bus") : String(localized: "\($0.controllers.count) buses") },
                         value: snapshot.map { .available($0.devicesDescription) }
                     )
 
@@ -32,8 +32,8 @@ struct USBPerformanceView: View {
                             StatisticView(label: "Fastest Link", value: snapshot.controllers.compactMap(\.fastestSpeed).max().map { .available($0.name) } ?? .unavailable(.notApplicable))
                         }
 
-                        ForEach(snapshot.controllers) { controller in
-                            USBBusView(controller: controller)
+                        ForEach(Array(snapshot.controllers.enumerated()), id: \.element.id) { index, controller in
+                            USBBusView(controller: controller, number: index + 1)
                         }
 
                         SourceNote(text: "Power is the bus power each device requested and was allocated at 5 V (undocumented IORegistry value “UsbPowerSinkAllocation”) — not a measurement. Devices with their own power supply and USB‑C Power Delivery beyond 5 V are not included.")
@@ -59,6 +59,7 @@ struct USBPerformanceView: View {
 /// One bus: a header with its device count and fastest link, then its device tree.
 private struct USBBusView: View {
     let controller: USBNode
+    let number: Int
 
     var body: some View {
         GroupBox {
@@ -78,14 +79,19 @@ private struct USBBusView: View {
         } label: {
             HStack(alignment: .firstTextBaseline) {
                 Label {
-                    Text(verbatim: controller.name)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Bus \(number)")
+                        Text(verbatim: controller.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } icon: {
                     Image(systemName: "point.3.filled.connected.trianglepath.dotted")
                 }
                 .font(.headline)
                 Spacer()
                 Text(verbatim: [
-                    String(localized: "\(controller.deviceCount) devices"),
+                    USBSnapshot.devicesDescription(count: controller.deviceCount),
                     controller.totalAllocatedMilliamps.map { _ in controller.totalPowerText },
                 ].compactMap { $0 }.joined(separator: " · "))
                 .font(.caption)
