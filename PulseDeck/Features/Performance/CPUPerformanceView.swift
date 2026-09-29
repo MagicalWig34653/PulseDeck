@@ -209,6 +209,7 @@ struct CPUPerformanceView: View {
 }
 
 /// One small chart per logical processor (SPEC §13 "Logical Processors" mode), each with hover.
+/// On Apple silicon each chart is labelled and colored as a performance or efficiency core.
 private struct LogicalProcessorGrid: View {
     let history: MetricHistory
     /// Per logical processor; empty on Macs without core types. Colors P- and E-cores apart.
@@ -220,38 +221,75 @@ private struct LogicalProcessorGrid: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 120)
         } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                ForEach(0..<history.seriesCount, id: \.self) { core in
-                    let type = coreTypes.indices.contains(core) ? coreTypes[core] : nil
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 4) {
-                            Text("CPU \(core)")
-                            if let type {
-                                Text(type.shortLabel)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(type.color)
-                                    .help(Text(type.clusterTitle))
-                            }
-                            Spacer()
-                            Text(verbatim: history.latest.flatMap { $0.values[core] }.map(Format.percent) ?? AppState.placeholder)
-                                .monospacedDigit()
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        TimeSeriesChart(
-                            history: history,
-                            series: [ChartSeries(label: "CPU \(core)", color: type?.color ?? .blue, value: { $0.values[core] })],
-                            yAxis: .fraction,
-                            format: Format.precisePercent,
-                            accessibilityLabel: Text("CPU \(core) utilization"),
-                            isCompact: true,
-                            isFramed: true
-                        )
-                        .frame(height: 72)
+            VStack(alignment: .leading, spacing: 10) {
+                if Set(coreTypes).count > 1 {
+                    legend
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                    ForEach(0..<history.seriesCount, id: \.self) { core in
+                        cell(core: core, type: coreTypes.indices.contains(core) ? coreTypes[core] : nil)
                     }
                 }
             }
         }
+    }
+
+    private var legend: some View {
+        HStack(spacing: 14) {
+            ForEach([CoreType.performance, .efficiency], id: \.self) { type in
+                HStack(spacing: 5) {
+                    CoreTypeBadge(type: type)
+                    Text(type.clusterTitle)
+                }
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private func cell(core: Int, type: CoreType?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Text("CPU \(core)")
+                if let type {
+                    CoreTypeBadge(type: type)
+                }
+                Spacer()
+                Text(verbatim: history.latest.flatMap { $0.values[core] }.map(Format.percent) ?? AppState.placeholder)
+                    .monospacedDigit()
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            TimeSeriesChart(
+                history: history,
+                series: [ChartSeries(label: "CPU \(core)", color: type?.color ?? .blue, value: { $0.values[core] })],
+                yAxis: .fraction,
+                format: Format.precisePercent,
+                accessibilityLabel: type.map { Text("CPU \(core), \(Text($0.coreTitle)), utilization") }
+                    ?? Text("CPU \(core) utilization"),
+                isCompact: true,
+                isFramed: true,
+                scrollsSmoothly: true
+            )
+            .frame(height: 72)
+        }
+    }
+}
+
+/// "P" / "E" in a small capsule of the core type's color.
+private struct CoreTypeBadge: View {
+    let type: CoreType
+
+    var body: some View {
+        Text(verbatim: type.shortLabel)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(minWidth: 14)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(type.color.gradient, in: .capsule)
+            .help(Text(type.coreTitle))
+            .accessibilityLabel(Text(type.coreTitle))
     }
 }
 
@@ -267,6 +305,14 @@ extension CoreType {
         switch self {
         case .performance: "Performance cores"
         case .efficiency: "Efficiency cores"
+        }
+    }
+
+    /// Singular, for one logical processor.
+    var coreTitle: LocalizedStringResource {
+        switch self {
+        case .performance: "Performance core"
+        case .efficiency: "Efficiency core"
         }
     }
 

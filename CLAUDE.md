@@ -72,7 +72,7 @@ The product owner approves each milestone explicitly. Ask before starting one un
 - Memory page: optional pie of memory by process (`ProcessMemoryBreakdown`, top 5 by name + rest;
   demands `.processes` only while the toggle is on). `-initialScrollAnchor bottom` opens pages scrolled
   down (screenshots).
-- `SystemHistory.capacity` = 121 (60 s at 0.5 s); `cpuFrequency` history. Foreground interval 0.5–5 s
+- `SystemHistory.capacity` = 124 (60 s at 0.5 s + the sample before the window + scroll trail + slack; charts draw from `drawingStartIndex(forWindowStart:)` so lines reach the left edge); `cpuFrequency` history. Foreground interval 0.5–5 s
   (Settings → General). Smooth scrolling: `ChartWindow(history:scrollingOver:now:)` in a
   `TimelineView(.animation(minimumInterval: 1/30))`, only full-size charts, only when the window
   `appearsActive`, not paused, no Reduce Motion. Holding Control alone pauses (`ControlKeyPause`,
@@ -169,7 +169,7 @@ screenshots run is in progress, or its final `git push` is rejected.
 - Public APIs first. Undocumented sources only with the owner's approval, labelled in the UI, with fallback.
   Approved and implemented: memory-pressure sysctl, IOAccelerator GPU stats (M6), `SystemPowerIn` (M7).
 - No shell-command polling, no private frameworks, no privileged helper, no App Sandbox (see plan §11).
-- Collection happens off the MainActor in actors. History stays bounded (`SystemHistory.capacity = 61`).
+- Collection happens off the MainActor in actors. History stays bounded (`SystemHistory.capacity = 124`).
 - Swift 6 language mode, zero warnings (CI treats warnings as errors), no force unwraps in telemetry paths,
   comments for non-obvious Darwin/IOKit behaviour, no unexplained magic numbers.
 - Tests: Swift Testing. Test doubles live only in test targets.
