@@ -34,7 +34,9 @@ struct USBView: View {
     }
 
     private func content(_ snapshot: USBSnapshot) -> some View {
-        ScrollView([.vertical, .horizontal]) {
+        // Vertical page; only the diagram scrolls sideways when it is wider than the window. (A
+        // two-axis scroll view centres content smaller than the viewport.)
+        ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(spacing: 28) {
                     summary("Devices", snapshot.devicesDescription)
@@ -44,7 +46,11 @@ struct USBView: View {
                     summary("Fastest Link", snapshot.controllers.compactMap(\.fastestSpeed).max()?.name ?? AppState.placeholder)
                 }
 
-                USBTreeDiagram(snapshot: snapshot)
+                ScrollView(.horizontal) {
+                    USBTreeDiagram(snapshot: snapshot)
+                        .padding(.vertical, 4)
+                }
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
 
                 SpeedLegend()
 
