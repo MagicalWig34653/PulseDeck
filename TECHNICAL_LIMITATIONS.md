@@ -227,7 +227,7 @@ Decisions by the product owner are recorded under each item.
 - **APIs investigated:** macOS measures no per-port current. The IORegistry exposes what the host
   *allocated* to each device (`UsbPowerSinkAllocation`, mA; legacy `Requested Power` in 2 mA units)
   and port limits (`kUSBWakePortCurrentLimit`) — undocumented keys, verified present on the CI VM.
-- **Decision (owner approved "allocated, labelled"):** the USB page shows allocated bus power per
+- **Decision (owner approved "allocated, labelled"):** the USB section shows allocated bus power per
   device and totals per bus, at 5 V, with a note that it is an allocation, not a measurement, and
   excludes self-powered devices and USB‑C Power Delivery.
 

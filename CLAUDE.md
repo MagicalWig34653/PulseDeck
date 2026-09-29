@@ -60,12 +60,16 @@ The product owner approves each milestone explicitly. Ask before starting one un
   `TailscaleMonitor` (LocalAPI `/localapi/v0/status`: unix socket, or TCP port + sameuserproof token;
   Tailscale interface page), `ContainerMonitor` + `ContainerControl` (Docker Engine API on
   Colima/Docker sockets; Containers section = `AppSection.containers`), `USBMonitor` (IOUSB plane,
-  `USBSpeed`, `UsbPowerSinkAllocation` mA — L‑12; `ResourceCategory.usb`). `LocalHTTPClient` does the
+  `USBSpeed`, `UsbPowerSinkAllocation` mA — L‑12; its own section `AppSection.usb`, a left-to-right tree diagram laid
+  out by `TreeLayout` in core). `LocalHTTPClient` does the
   socket HTTP; parsing (`HTTPResponse`, `TailscaleStatusTracker`, `DockerStatsTracker`) is in core.
 - Existing collectors: core types (`IODeviceTree:/cpus` `cluster-type`), `kern.boottime`, compressor
   original size, disk bus / mount points / `fs_snapshot_list` count (needs `ATTR_CMN_RETURNED_ATTRS`,
   else EINVAL; snapshot bytes L‑10), `ifi_baudrate` link speed, CoreWLAN Wi‑Fi (no location permission
   needed for PHY mode/rate/RSSI/channel).
+- Memory page: optional pie of memory by process (`ProcessMemoryBreakdown`, top 5 by name + rest;
+  demands `.processes` only while the toggle is on). `-initialScrollAnchor bottom` opens pages scrolled
+  down (screenshots).
 - `SystemHistory.capacity` = 121 (60 s at 0.5 s); `cpuFrequency` history. Foreground interval 0.5–5 s
   (Settings → General). Smooth scrolling: `ChartWindow(history:scrollingOver:now:)` in a
   `TimelineView(.animation(minimumInterval: 1/30))`, only full-size charts, only when the window

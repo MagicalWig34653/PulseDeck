@@ -49,12 +49,12 @@ enum PerformanceItem: Hashable, Identifiable, RawRepresentable {
 
 extension AppState {
     /// The Performance list: CPU, memory, each visible disk, each visible network interface,
-    /// GPU, energy, USB. A device kind whose collector reports no devices keeps its category entry,
+    /// GPU, energy. A device kind whose collector reports no devices keeps its category entry,
     /// so "Not Available" stays reachable instead of the kind silently disappearing.
     var performanceItems: [PerformanceItem] {
         var items: [PerformanceItem] = [.category(.cpu), .category(.memory)]
         items += deviceItems(disks: visibleDisks, network: visibleInterfaces)
-        items += [.category(.gpu), .category(.energy), .category(.usb)]
+        items += [.category(.gpu), .category(.energy)]
         return items
     }
 

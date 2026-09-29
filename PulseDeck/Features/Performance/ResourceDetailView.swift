@@ -5,6 +5,7 @@ import SwiftUI
 /// page needs beyond the list previews.
 struct ResourceDetailView: View {
     @Environment(AppState.self) private var appState
+    @AppStorage(PreferenceKey.memoryProcessPie) private var showsProcessPie = false
     let item: PerformanceItem
 
     var body: some View {
@@ -26,8 +27,6 @@ struct ResourceDetailView: View {
                 GPUPerformanceView()
             case .category(.energy):
                 EnergyPerformanceView()
-            case .category(.usb):
-                USBPerformanceView()
             }
         }
         .navigationTitle(Text(item.category.title))
@@ -48,8 +47,8 @@ struct ResourceDetailView: View {
         switch item {
         case .category(.cpu):
             return [.cpuFrequency]
-        case .category(.usb):
-            return [.usb]
+        case .category(.memory):
+            return showsProcessPie ? [.processes] : []
         case .networkInterface(let id):
             let interface = appState.latestSnapshot?.network.value?.interfaces.first { $0.id == id }
             return interface?.isTailscale == true ? [.tailscale] : []

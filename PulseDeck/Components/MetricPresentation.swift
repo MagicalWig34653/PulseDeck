@@ -258,8 +258,6 @@ extension SystemSnapshot {
             energy.flatMap { energy in
                 energy.battery.map { battery in String(localized: "Battery \(Format.percent(battery.charge)) · \(battery.stateLabel)") }
             }
-        case .usb:
-            usb.map(\.devicesDescription)
         }
     }
 }

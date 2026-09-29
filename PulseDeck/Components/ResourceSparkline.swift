@@ -73,9 +73,6 @@ struct ResourceSparkline: View {
                   let gpuHistory = history.gpus[first.id] else { return nil }
             return Sparkline(history: gpuHistory, series: [ChartSeries(label: "Utilization", color: .green, value: { $0.values[0] })],
                              yAxis: .fraction, format: Format.percent)
-        case .usb:
-            // A tree, not a time series.
-            return nil
         case .energy:
             // Only where a power value can exist (portables); desktops show no sparkline.
             guard let energy = appState.latestSnapshot?.energy.value,

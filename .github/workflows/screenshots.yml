@@ -77,9 +77,9 @@ jobs:
           capture energy-light false -navigationPresentation topBar -initialCategory energy
           capture processes-light false -navigationPresentation topBar -initialSection processes
           capture processes-dark true -navigationPresentation sidebar -initialSection processes
-          capture memory-pie-dark true -navigationPresentation topBar -initialCategory memory -memoryCompositionStyle pie -initialScrollAnchor bottom
+          capture memory-pie-dark true -navigationPresentation topBar -initialCategory memory -memoryProcessPie YES -initialScrollAnchor bottom
           capture disk-details-dark true -navigationPresentation topBar -initialCategory disks -initialScrollAnchor bottom
-          capture usb-light false -navigationPresentation topBar -initialCategory usb
+          capture usb-light false -navigationPresentation topBar -initialSection usb
           capture containers-dark true -navigationPresentation topBar -initialSection containers
           set_dark_mode false
 

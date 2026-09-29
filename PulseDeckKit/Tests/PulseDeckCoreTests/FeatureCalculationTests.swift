@@ -248,6 +248,11 @@ struct FeatureDemandTests {
         #expect(policy.demand == [.containers])
     }
 
+    @Test func usbSectionDemandsTheUSBTree() {
+        let policy = SamplingDemand.policy(for: ObservationState(isMainWindowVisible: true, visibleSection: .usb))
+        #expect(policy.demand == [.usb])
+    }
+
     @Test func detailPagesAddTheirDomainsOnlyInPerformance() {
         let performance = ObservationState(isMainWindowVisible: true, visibleSection: .performance, detailPageDemand: [.cpuFrequency])
         #expect(SamplingDemand.policy(for: performance).demand == [.gpu, .energy, .cpuFrequency])
@@ -286,5 +291,69 @@ struct FrequencyHistoryTests {
         ]
         #expect(SystemHistory.meanFrequency(of: clusters, type: .performance) == 2.5e9)
         #expect(SystemHistory.meanFrequency(of: clusters, type: .efficiency) == nil)
+    }
+}
+
+@Suite("Process memory breakdown")
+struct ProcessMemoryBreakdownTests {
+    private func process(_ pid: Int32, _ name: String, _ bytes: UInt64?) -> ProcessSnapshot {
+        ProcessSnapshot(
+            identity: ProcessIdentity(pid: pid, startTimeMicroseconds: 1),
+            name: name,
+            path: nil,
+            cpu: .unavailable(.awaitingBaseline),
+            memoryBytes: bytes.map { .available($0) } ?? .unavailable(.permissionDenied),
+            threadCount: .unavailable(.awaitingBaseline),
+            diskReadBytesPerSecond: .unavailable(.awaitingBaseline),
+            diskWriteBytesPerSecond: .unavailable(.awaitingBaseline)
+        )
+    }
+
+    @Test func groupsByNameKeepsFiveLargestAndSumsTheRest() {
+        let processes = [
+            process(1, "Safari", 500), process(2, "Helper", 300), process(3, "Helper", 300),
+            process(4, "Mail", 400), process(5, "Xcode", 900), process(6, "Music", 100),
+            process(7, "Notes", 50), process(8, "kernel_task", nil), process(9, "Finder", 30),
+        ]
+        let breakdown = ProcessMemoryBreakdown(processes: processes)
+        #expect(breakdown.slices.count == 6)
+        #expect(breakdown.slices.map(\.name) == ["Xcode", "Helper", "Safari", "Mail", "Music", nil])
+        #expect(breakdown.slices[1].processCount == 2)
+        #expect(breakdown.slices[5].bytes == 80)
+        #expect(breakdown.slices[5].processCount == 2)
+        #expect(breakdown.slices[5].isOther)
+        #expect(breakdown.totalBytes == 2_580)
+        #expect(breakdown.excludedProcessCount == 1)
+    }
+
+    @Test func noRemainderWhenEverythingFits() {
+        let breakdown = ProcessMemoryBreakdown(processes: [process(1, "A", 2), process(2, "B", 1)])
+        #expect(breakdown.slices.map(\.name) == ["A", "B"])
+        #expect(breakdown.slices.allSatisfy { !$0.isOther })
+    }
+}
+
+@Suite("Tree layout")
+struct TreeLayoutTests {
+    private struct Node {
+        let id: String
+        var children: [Node] = []
+    }
+
+    @Test func leavesTakeRowsAndParentsAreCentred() {
+        let tree = Node(id: "mac", children: [
+            Node(id: "bus1", children: [Node(id: "hub", children: [Node(id: "a"), Node(id: "b")]), Node(id: "c")]),
+            Node(id: "bus2"),
+        ])
+        let layout = TreeLayout(roots: [tree], id: \.id, children: \.children)
+        #expect(layout.rowCount == 4)
+        #expect(layout.columnCount == 4)
+        #expect(layout.positions["a"] == .init(column: 3, row: 0))
+        #expect(layout.positions["b"] == .init(column: 3, row: 1))
+        #expect(layout.positions["hub"] == .init(column: 2, row: 0.5))
+        #expect(layout.positions["c"] == .init(column: 2, row: 2))
+        #expect(layout.positions["bus1"] == .init(column: 1, row: 1.25))
+        #expect(layout.positions["bus2"] == .init(column: 1, row: 3))
+        #expect(layout.positions["mac"] == .init(column: 0, row: 2.125))
     }
 }
