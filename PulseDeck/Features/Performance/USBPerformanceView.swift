@@ -186,6 +186,7 @@ private struct SpeedBadge: View {
     }
 }
 
+@MainActor
 extension USBNode {
     /// "Apple Inc. · 05ac:12a8 · USB 2.0 High Speed".
     var detailText: String {

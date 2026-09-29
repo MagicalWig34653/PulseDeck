@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Holding Control (alone) pauses display updates, as in Windows Task Manager, so a value or a

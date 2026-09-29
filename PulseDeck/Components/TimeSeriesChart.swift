@@ -59,6 +59,7 @@ struct TimeSeriesChart: View {
         }
     }
 
+    @ViewBuilder
     private func chart(in window: ChartWindow) -> some View {
         let upperBound = upperBound(in: window)
         VStack(alignment: .leading, spacing: 4) {
@@ -195,7 +196,11 @@ struct ChartWindow {
     let start: MonotonicInstant
 
     init(history: MetricHistory) {
-        end = history.latest?.timestamp ?? MonotonicInstant(nanoseconds: 0)
+        self.init(end: history.latest?.timestamp ?? MonotonicInstant(nanoseconds: 0))
+    }
+
+    private init(end: MonotonicInstant) {
+        self.end = end
         start = end.advanced(by: .zero - SystemHistory.window)
     }
 
@@ -209,8 +214,7 @@ struct ChartWindow {
             return
         }
         let elapsed = min(max(now.timeIntervalSince(latest.wallClock), 0), interval)
-        end = latest.timestamp.advanced(by: .milliseconds(Int64(((elapsed - interval) * 1_000).rounded())))
-        start = end.advanced(by: .zero - SystemHistory.window)
+        self.init(end: latest.timestamp.advanced(by: .milliseconds(Int64(((elapsed - interval) * 1_000).rounded()))))
     }
 
     var durationNanoseconds: Double { Double(end.nanoseconds(since: start)) }

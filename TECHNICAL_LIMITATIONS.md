@@ -198,6 +198,39 @@ Decisions by the product owner are recorded under each item.
   *Not Available*. The Memory page labels the value's source. Because the level is polled, the
   dispatch source is not needed.
 
+## L‑10 · Space used by APFS snapshots
+
+- **Owner request:** Disks page "used space for snapshots".
+- **APIs investigated:** `fs_snapshot_list(2)` (public, `<sys/snapshot.h>`) lists snapshots by name
+  and date only. The per-snapshot "private size" that `tmutil`/Disk Utility show comes from APFS
+  internals (`apfs` fsctl / private frameworks). No public API reports it.
+- **Decision (implemented in v0.6.0):** the snapshot *count* is shown (`fs_snapshot_list`, counted
+  per mounted APFS volume; the sealed system snapshot mounted at "/" counts too). *Snapshot Space*
+  shows *Not Available* with that explanation. No shell tools (`tmutil`, `diskutil`) are polled.
+
+## L‑11 · Current CPU frequency
+
+- **Owner request:** CPU page "frequency".
+- **APIs investigated:** `sysctl hw.cpufrequency` does not exist on Apple silicon; no documented API
+  reports current clock speeds.
+- **Decision (owner approved "IOReport"):** `CPUFrequencyMonitor` opens the private
+  `libIOReport.dylib` with `dlopen` (never linked) and reads the "CPU Stats" → "CPU Complex
+  Performance States" residencies per cluster; state frequencies come from the IORegistry
+  (`IODeviceTree:/arm-io/pmgr` voltage-state tables). The page shows the activity-weighted average
+  frequency per cluster, labelled as coming from a private library. Missing library, channels or
+  tables → *Not Available* (the CI VM has none). **Needs a real Mac** to validate against
+  `powermetrics`.
+
+## L‑12 · Power per USB port
+
+- **Owner request:** "power consumption of every USB port".
+- **APIs investigated:** macOS measures no per-port current. The IORegistry exposes what the host
+  *allocated* to each device (`UsbPowerSinkAllocation`, mA; legacy `Requested Power` in 2 mA units)
+  and port limits (`kUSBWakePortCurrentLimit`) — undocumented keys, verified present on the CI VM.
+- **Decision (owner approved "allocated, labelled"):** the USB page shows allocated bus power per
+  device and totals per bus, at 5 V, with a note that it is an allocation, not a measurement, and
+  excludes self-powered devices and USB‑C Power Delivery.
+
 ## L‑9 · Verification environment (process limitation, not a product limitation)
 
 - Milestone 1 was authored in a Linux container without Xcode. The platform-independent core was

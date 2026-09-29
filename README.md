@@ -60,15 +60,24 @@ Screenshots are captured automatically from the real app with live data on a mac
 
 Implemented:
 
-- **CPU** — total, user, system and idle utilization; per-logical-processor charts; model name,
-  logical/physical core counts and performance/efficiency clusters.
+- **CPU** — total, user, system and idle utilization; performance vs. efficiency cores chart;
+  per-logical-processor charts with P/E cores coloured apart; cluster frequencies (from the private
+  IOReport library, labelled); uptime; model name and core counts.
 - **Memory** — used (App Memory + Wired + Compressed), available, wired, compressed, cached files,
-  free, swap and memory pressure, with a composition bar.
+  free, swap and memory pressure, with a composition bar or pie chart and a compression chart
+  (compressed vs. original size, ratio).
 - **Network** — every interface individually (Ethernet, Wi‑Fi, Thunderbolt, bridges, VPN/tunnels),
-  download/upload rates from 64-bit kernel counters, totals, local IPv4/IPv6 addresses, and
-  hot-plug/VPN reconnect handling.
-- **Disks** — every storage device with read/write throughput, cumulative transfer, capacity and
-  available space (APFS containers counted once).
+  download/upload rates from 64-bit kernel counters, totals, local IPv4/IPv6 addresses, negotiated
+  link speed, Wi‑Fi standard/rate/channel/signal, and hot-plug/VPN reconnect handling.
+- **Tailscale** — the Tailscale interface is detected; its page shows the tailnet, a flow diagram of
+  current connections (direct or via DERP relay) and a peer table with bandwidth, read from the
+  Tailscale client's local API.
+- **Disks** — every storage device with read/write throughput, cumulative transfer, capacity,
+  available space (APFS containers counted once), bus, mount points and APFS snapshot count.
+- **USB** — a tree of every bus, hub and device with its negotiated link speed and the bus power
+  allocated to it (an allocation reported by macOS, not a measurement — labelled).
+- **Containers** — local Docker containers (Colima, Docker Desktop or any local Docker socket) with
+  CPU, memory, network and ports; Start, Stop and Restart.
 - **GPU** — every Metal device (name, integrated/discrete, unified memory, location) and
   system-wide utilization with a history chart. Utilization comes from an undocumented driver
   statistic (`IOAccelerator` “Device Utilization %”); the page says so, and shows *Not Available*
@@ -86,7 +95,9 @@ Implemented:
   own entry with live value and sparkline. Any of them can be hidden (context menu or Settings →
   Sidebar); loopback, never-used interfaces and disk images start hidden.
 - **60-second history charts** with hover inspection: a vertical rule, highlighted points, the
-  sample's time and all series values. Hovering only reads recorded history.
+  sample's time and all series values. Hovering only reads recorded history. A fine grid scrolls
+  with the data and charts scroll smoothly while the window is in front (both optional).
+- **Hold Control to pause** the window's updates; sampling continues and nothing is lost.
 - **Menu bar app** — keeps running in the menu bar when the window closes; the Dock icon appears
   only while the main window is open. The menu bar panel shows CPU, memory, GPU, energy and network
   with live values and 60-second sparklines; each row opens its page. Optional live metric in the
@@ -96,7 +107,8 @@ Implemented:
 - **Accessibility** — VoiceOver labels throughout, Audio Graphs for every chart, stronger chart lines
   with Increase Contrast, no animations, full keyboard navigation in lists and tables.
 - **Two navigation styles** — Liquid Glass top bar (default) or sidebar, persisted in Settings.
-- **Energy-aware sampling** — 1 Hz while the window or menu bar panel is visible; every 3 s
+- **Energy-aware sampling** — every second (configurable 0.5–5 s) while the window or menu bar
+  panel is visible; every 3 s
   (configurable 2–5 s) when they are closed,
   minimised or fully covered; stopped during sleep, with all counter baselines discarded on wake so
   no bogus spikes appear.

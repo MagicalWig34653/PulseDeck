@@ -157,7 +157,7 @@ struct TailscaleFlowDiagram: View {
         } else {
             let height = CGFloat(peers.count) * Self.rowHeight
             GeometryReader { geometry in
-                let layout = Layout(size: geometry.size, peers: peers, relays: relays)
+                let layout = NodeLayout(size: geometry.size, peers: peers, relays: relays)
                 ZStack {
                     Canvas { context, _ in
                         for peer in peers {
@@ -244,7 +244,7 @@ struct TailscaleFlowDiagram: View {
     }
 
     /// Node positions: self at the left, relays in the middle, peers at the right.
-    private struct Layout {
+    private struct NodeLayout {
         let size: CGSize
         let peers: [TailscalePeer]
         let relays: [String]
