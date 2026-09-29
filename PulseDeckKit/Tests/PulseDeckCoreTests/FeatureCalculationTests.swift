@@ -357,3 +357,81 @@ struct TreeLayoutTests {
         #expect(layout.positions["mac"] == .init(column: 0, row: 2.125))
     }
 }
+
+@Suite("SMC and thermals")
+struct ThermalTests {
+    @Test func fourCCRoundTrips() throws {
+        let code = try #require(SMC.fourCC("Tp09"))
+        #expect(code == 0x5470_3039)
+        #expect(SMC.string(fromFourCC: code) == "Tp09")
+        #expect(SMC.fourCC("TooLong") == nil)
+    }
+
+    @Test func requestLayoutMatchesTheCStructure() throws {
+        let request = SMC.request(.readBytes, key: try #require(SMC.fourCC("F0Ac")), index: 7, dataSize: 4)
+        #expect(request.count == 80)
+        #expect(Array(request[0..<4]) == [0x63, 0x41, 0x30, 0x46]) // "F0Ac" as a native little-endian UInt32
+        #expect(Array(request[28..<32]) == [4, 0, 0, 0])
+        #expect(request[42] == 5)
+        #expect(Array(request[44..<48]) == [7, 0, 0, 0])
+    }
+
+    @Test func responsesAreDecoded() throws {
+        var response = [UInt8](repeating: 0, count: 80)
+        response[28] = 4
+        let type = try #require(SMC.fourCC("flt "))
+        for index in 0..<4 { response[32 + index] = UInt8(truncatingIfNeeded: type >> UInt32(8 * index)) }
+        let info = try #require(SMC.keyInfo(of: response))
+        #expect(info == SMC.KeyInfo(dataSize: 4, dataType: "flt "))
+        let bits = Float(42.5).bitPattern
+        for index in 0..<4 { response[48 + index] = UInt8(truncatingIfNeeded: bits >> UInt32(8 * index)) }
+        let bytes = try #require(SMC.valueBytes(of: response, size: info.dataSize))
+        #expect(SMC.decode(bytes, type: info.dataType) == 42.5)
+        response[40] = 132 // kSMCKeyNotFound
+        #expect(SMC.keyInfo(of: response) == nil)
+    }
+
+    @Test func fixedPointAndIntegerTypes() {
+        #expect(SMC.decode([0x2E, 0x80], type: "sp78") == 46.5)
+        #expect(SMC.decode([0xFF, 0x00], type: "sp78") == -1)
+        #expect(SMC.decode([0x1C, 0x20], type: "fpe2") == 1800)
+        #expect(SMC.decode([2], type: "ui8 ") == 2)
+        #expect(SMC.decode([0x01, 0x00], type: "ui16") == 256)
+        #expect(SMC.decode([1, 2, 3], type: "ch8*") == nil)
+    }
+
+    @Test func keysMapToZonesPerArchitecture() {
+        #expect(ThermalClassifier.zone(ofKey: "Tp09", architecture: .appleSilicon) == .cpuPerformance)
+        #expect(ThermalClassifier.zone(ofKey: "Te05", architecture: .appleSilicon) == .cpuEfficiency)
+        #expect(ThermalClassifier.zone(ofKey: "Tg0f", architecture: .appleSilicon) == .gpu)
+        #expect(ThermalClassifier.zone(ofKey: "TB1T", architecture: .appleSilicon) == .battery)
+        #expect(ThermalClassifier.zone(ofKey: "TC0P", architecture: .intel) == .cpu)
+        #expect(ThermalClassifier.zone(ofKey: "Tp09", architecture: .intel) == .power)
+        #expect(ThermalClassifier.zone(ofKey: "TZ00", architecture: .appleSilicon) == nil)
+        #expect(ThermalClassifier.zone(ofKey: "F0Ac", architecture: .appleSilicon) == nil)
+        #expect(!ThermalClassifier.isPlausible(0))
+        #expect(!ThermalClassifier.isPlausible(-127))
+        #expect(ThermalClassifier.isPlausible(48))
+    }
+
+    @Test func zonesSummariseSensorsHottestFirst() {
+        let snapshot = ThermalSnapshot(sensors: [
+            TemperatureSensor(key: "Tp01", zone: .cpuPerformance, celsius: 60),
+            TemperatureSensor(key: "Tp05", zone: .cpuPerformance, celsius: 70),
+            TemperatureSensor(key: "Tg0f", zone: .gpu, celsius: 50),
+            TemperatureSensor(key: "Te05", zone: .cpuEfficiency, celsius: 45),
+        ], fans: .unavailable(.notApplicable))
+        #expect(snapshot.zones.map(\.zone) == [.cpuPerformance, .gpu, .cpuEfficiency])
+        #expect(snapshot.zone(.cpuPerformance) == ThermalZoneReading(zone: .cpuPerformance, maximumCelsius: 70, averageCelsius: 65, sensorCount: 2))
+        #expect(snapshot.cpuMaximumCelsius == 70)
+    }
+
+    @Test func fanRangeAndBatteryHealth() {
+        let fan = FanReading(index: 0, actualRPM: 2_500, minimumRPM: 1_000, maximumRPM: 4_000, targetRPM: nil)
+        #expect(fan.fractionOfRange == 0.5)
+        let health = BatteryHealth(cycleCount: 120, designCycleCount: 1_000, designCapacity: 5_000, fullChargeCapacity: 4_500, temperatureCelsius: nil)
+        #expect(health.maximumCapacityFraction == 0.9)
+        #expect(BatteryHealth.celsius(fromRegistryTemperature: 3_055) == 30.55)
+        #expect(BatteryHealth.celsius(fromRegistryTemperature: 0) == nil)
+    }
+}

@@ -11,6 +11,10 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
+      run_tests:
+        description: Run the package tests again (the merged PR already passed CI)
+        type: boolean
+        default: false
       version:
         description: Version to release from main, e.g. 0.1.0 (creates tag v<version>)
         required: true
@@ -50,7 +54,9 @@ jobs:
           echo "dmg=PulseDeck-$version.dmg" >> "$GITHUB_OUTPUT"
           xcodebuild -version
 
+      # Manual releases come from main after a green PR run; tag/release events keep the tests.
       - name: Test
+        if: github.event_name != 'workflow_dispatch' || inputs.run_tests
         working-directory: PulseDeckKit
         run: swift test
 

@@ -40,6 +40,16 @@ public actor EnergyMonitor: TelemetryProvider {
         static let serviceClass = "AppleSmartBattery"
         static let powerTelemetryData = "PowerTelemetryData"
         static let systemPowerIn = "SystemPowerIn"
+        static let cycleCount = "CycleCount"
+        static let designCycleCount = "DesignCycleCount9C"
+        static let designCapacity = "DesignCapacity"
+        /// Full-charge capacity in mAh on Apple silicon (`MaxCapacity` is a percentage there).
+        static let rawMaxCapacity = "AppleRawMaxCapacity"
+        static let nominalChargeCapacity = "NominalChargeCapacity"
+        /// mAh on Intel Macs.
+        static let maxCapacity = "MaxCapacity"
+        /// Hundredths of a degree Celsius.
+        static let temperature = "Temperature"
     }
 
     private enum SystemPowerReading {
@@ -66,9 +76,15 @@ public actor EnergyMonitor: TelemetryProvider {
             .map(EnergyCalculator.battery(from:)) ?? .unavailable(.unsupportedHardware)
         let powerSource = battery.value?.powerSource ?? EnergyCalculator.powerSource(from: providingState)
 
-        let systemPower: MetricState<AttributedValue<Double>> = switch Self.readSystemPowerIn() {
+        let smartBattery = Self.readSmartBattery()
+        let systemPower: MetricState<AttributedValue<Double>> = switch smartBattery.power {
         case .noController: .unavailable(.unsupportedHardware)
         case .milliwatts(let milliwatts): EnergyCalculator.systemPowerIn(milliwatts: milliwatts, powerSource: powerSource)
+        }
+        let batteryWithHealth = battery.map { snapshot in
+            var snapshot = snapshot
+            snapshot.health = smartBattery.health.map { .available($0) } ?? .unavailable(.unsupportedHardware)
+            return snapshot
         }
 
         let adapter = Self.dictionary(IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue())
@@ -78,7 +94,7 @@ public actor EnergyMonitor: TelemetryProvider {
         )
 
         return .available(EnergySnapshot(
-            battery: battery,
+            battery: batteryWithHealth,
             systemPowerWatts: systemPower,
             cpuPowerWatts: .unavailable(.noPublicAPI),
             gpuPowerWatts: .unavailable(.noPublicAPI),
@@ -123,13 +139,34 @@ public actor EnergyMonitor: TelemetryProvider {
 
     // MARK: - AppleSmartBattery (undocumented, approved)
 
-    private static func readSystemPowerIn() -> SystemPowerReading {
+    /// System power in and battery wear from one registry lookup.
+    private static func readSmartBattery() -> (power: SystemPowerReading, health: BatteryHealth?) {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching(SmartBatteryKey.serviceClass))
-        guard service != 0 else { return .noController }
+        guard service != 0 else { return (.noController, nil) }
         defer { IOObjectRelease(service) }
-        let telemetry = IORegistryEntryCreateCFProperty(service, SmartBatteryKey.powerTelemetryData as CFString, kCFAllocatorDefault, 0)?
-            .takeRetainedValue() as? [String: Any]
-        return .milliwatts((telemetry?[SmartBatteryKey.systemPowerIn] as? NSNumber)?.doubleValue)
+        func property(_ key: String) -> Any? {
+            IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue()
+        }
+        func integer(_ key: String) -> Int? {
+            (property(key) as? NSNumber)?.intValue
+        }
+        let telemetry = property(SmartBatteryKey.powerTelemetryData) as? [String: Any]
+        let power = SystemPowerReading.milliwatts((telemetry?[SmartBatteryKey.systemPowerIn] as? NSNumber)?.doubleValue)
+
+        // `MaxCapacity` is mAh only on Intel Macs; on Apple silicon it is ~100 (percent).
+        let percentScaleLimit = 200
+        let fullCharge = integer(SmartBatteryKey.rawMaxCapacity)
+            ?? integer(SmartBatteryKey.nominalChargeCapacity)
+            ?? integer(SmartBatteryKey.maxCapacity).flatMap { $0 > percentScaleLimit ? $0 : nil }
+        let health = BatteryHealth(
+            cycleCount: integer(SmartBatteryKey.cycleCount),
+            designCycleCount: integer(SmartBatteryKey.designCycleCount).flatMap { $0 > 0 ? $0 : nil },
+            designCapacity: integer(SmartBatteryKey.designCapacity).flatMap { $0 > 0 ? $0 : nil },
+            fullChargeCapacity: fullCharge,
+            temperatureCelsius: integer(SmartBatteryKey.temperature).flatMap(BatteryHealth.celsius(fromRegistryTemperature:))
+        )
+        let hasAny = health.cycleCount != nil || health.designCapacity != nil || health.fullChargeCapacity != nil
+        return (power, hasAny ? health : nil)
     }
 }
 #endif

@@ -78,6 +78,7 @@ struct EnergyPerformanceView: View {
                             StatisticView(label: "Current", value: battery.currentAmperes.map { String(localized: "\($0.formatted(.number.precision(.fractionLength(2)))) A") },
                                           help: "Positive while charging, negative while discharging.")
                         }
+                        BatteryHealthSection(health: battery.health)
                     } else if energy?.battery.unavailableReason == .unsupportedHardware {
                         GroupBox {
                             Label("This Mac has no battery.", systemImage: "battery.0percent")
@@ -107,5 +108,32 @@ struct EnergyPerformanceView: View {
     private static func hasPowerSource(_ energy: EnergySnapshot) -> Bool {
         energy.battery.unavailableReason != .unsupportedHardware
             || energy.systemPowerWatts.unavailableReason != .unsupportedHardware
+    }
+}
+
+/// Battery wear: maximum capacity, cycles, capacities and temperature (undocumented
+/// `AppleSmartBattery` values, labelled).
+struct BatteryHealthSection: View {
+    let health: MetricState<BatteryHealth>
+
+    var body: some View {
+        DetailSection(title: "Battery Health") {
+            StatisticView(label: "Maximum Capacity", value: health.map { health in
+                health.maximumCapacityFraction.map(Format.percent) ?? AppState.placeholder
+            }, help: "Full-charge capacity relative to the capacity when new, as in System Settings → Battery.")
+            StatisticView(label: "Cycle Count", value: health.map { health -> String in
+                guard let cycles = health.cycleCount else { return AppState.placeholder }
+                return health.designCycleCount.map { String(localized: "\(cycles) of \($0)") } ?? "\(cycles)"
+            }, help: "Charge cycles so far, and the number the battery is designed for.")
+            StatisticView(label: "Full Charge", value: health.map { health in
+                health.fullChargeCapacity.map { String(localized: "\($0) mAh") } ?? AppState.placeholder
+            })
+            StatisticView(label: "Design Capacity", value: health.map { health in
+                health.designCapacity.map { String(localized: "\($0) mAh") } ?? AppState.placeholder
+            })
+            StatisticView(label: "Temperature", value: health.map { health in
+                health.temperatureCelsius.map(Format.temperature) ?? AppState.placeholder
+            })
+        }
     }
 }

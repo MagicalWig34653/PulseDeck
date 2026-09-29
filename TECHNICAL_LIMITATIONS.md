@@ -231,6 +231,25 @@ Decisions by the product owner are recorded under each item.
   device and totals per bus, at 5 V, with a note that it is an allocation, not a measurement, and
   excludes self-powered devices and USB‑C Power Delivery.
 
+## L‑13 · Temperatures, fans and battery health
+
+- **Owner request:** temperatures as a top view of the logic board, the same for fans and battery
+  health.
+- **APIs investigated:** macOS has no public temperature or fan API. The System Management
+  Controller is reachable with public IOKit calls (`IOServiceOpen("AppleSMC")`,
+  `IOConnectCallStructMethod`, selector 2) without privileges, but its keys are undocumented and
+  differ per model. IOHIDEventSystem temperature services are private SPI (not used). Battery
+  wear is in the `AppleSmartBattery` registry entry (`CycleCount`, `DesignCycleCount9C`,
+  `DesignCapacity`, `AppleRawMaxCapacity`, `Temperature`) — undocumented keys, same entry as the
+  approved `SystemPowerIn`.
+- **Decision (owner request, implemented in v0.7.0):** `ThermalMonitor` enumerates the SMC keys
+  once, keeps temperature keys ("T…") with a plausible reading and groups them by the letter that
+  names the component (`ThermalClassifier`: Apple silicon `p`/`e`/`g`/`m`/`H`/`W`/`B`…, Intel
+  `C`/`G`/`M`/`H`…); unknown letters are dropped, never guessed. Fans from `FNum`/`F<n>Ac`/`Mn`/`Mx`.
+  The Thermals page draws a *schematic* board (labelled as such), shows the hottest sensor per
+  component and says the source is undocumented. Read only while the page is visible. The CI VM
+  exposes no SMC sensors, so the mapping **needs a real Mac**.
+
 ## L‑9 · Verification environment (process limitation, not a product limitation)
 
 - Milestone 1 was authored in a Linux container without Xcode. The platform-independent core was

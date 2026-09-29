@@ -39,6 +39,9 @@ final class AppState {
     /// The tree is only re-read while the section is visible.
     private(set) var latestUSB: USBSnapshot? = nil
 
+    /// Last thermal reading, for the Performance list entry while the Thermals page is closed.
+    private(set) var latestThermals: ThermalSnapshot? = nil
+
     /// Display updates are paused while Control is held (like Task Manager). Sampling continues;
     /// snapshots received meanwhile are applied when the pause ends, so no history is lost.
     private(set) var isPaused = false
@@ -253,6 +256,9 @@ final class AppState {
         }
         if let usb = snapshot.usb.value {
             latestUSB = usb
+        }
+        if let thermals = snapshot.thermals.value {
+            latestThermals = thermals
         }
         updateMenuBarLabel()
     }

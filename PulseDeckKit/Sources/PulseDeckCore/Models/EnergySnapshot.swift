@@ -20,8 +20,10 @@ public struct BatterySnapshot: Hashable, Sendable {
     /// Battery charge/discharge power, derived from voltage × current. This is *battery* power
     /// and must never be presented as total system power (SPEC §19).
     public var batteryPowerWatts: MetricState<AttributedValue<Double>>
+    /// Wear: cycle count, maximum capacity, temperature.
+    public var health: MetricState<BatteryHealth>
 
-    public init(charge: Double, isCharging: Bool, isCharged: Bool = false, powerSource: PowerSource, timeRemaining: MetricState<Double>, voltageVolts: MetricState<Double>, currentAmperes: MetricState<Double>, batteryPowerWatts: MetricState<AttributedValue<Double>>) {
+    public init(charge: Double, isCharging: Bool, isCharged: Bool = false, powerSource: PowerSource, timeRemaining: MetricState<Double>, voltageVolts: MetricState<Double>, currentAmperes: MetricState<Double>, batteryPowerWatts: MetricState<AttributedValue<Double>>, health: MetricState<BatteryHealth> = .notSampled) {
         self.charge = charge
         self.isCharging = isCharging
         self.isCharged = isCharged
@@ -30,6 +32,7 @@ public struct BatterySnapshot: Hashable, Sendable {
         self.voltageVolts = voltageVolts
         self.currentAmperes = currentAmperes
         self.batteryPowerWatts = batteryPowerWatts
+        self.health = health
     }
 }
 

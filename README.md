@@ -14,6 +14,7 @@
   <a href="https://github.com/MagicalWig34653/PulseDeck/releases/latest"><img src="https://img.shields.io/github/v/release/MagicalWig34653/PulseDeck?include_prereleases&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-blue" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6-orange" alt="Swift 6">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
 </p>
 
 ---
@@ -53,6 +54,10 @@
 |---|---|
 | <img src="docs/images/memory-pie-dark.png" alt="Pie chart of memory by process and the memory compression chart, dark appearance"> | <img src="docs/images/disk-details-dark.png" alt="Disk page scrolled to capacity and device details, dark appearance"> |
 
+| Thermals: schematic board view | |
+|---|---|
+| <img src="docs/images/thermals-dark.png" alt="Thermals page with the schematic logic board, dark appearance"> | |
+
 | USB tree | Containers |
 |---|---|
 | <img src="docs/images/usb-light.png" alt="USB section: tree diagram of buses and devices with link speeds and allocated power"> | <img src="docs/images/containers-dark.png" alt="Containers section without a running Docker engine, dark appearance"> |
@@ -64,7 +69,7 @@
 Screenshots are captured automatically from the real app with live data on a macOS 26 runner
 (a virtual machine, hence "Apple M2 Pro (Virtual)" and the VirtIO disk) by the
 [Screenshots workflow](.github/workflows/screenshots.yml). The runner has no Wi‑Fi, Tailscale,
-Docker engine or CPU frequency sensors and only two virtual USB devices, so those parts show what
+Docker engine, temperature or CPU frequency sensors and only two virtual USB devices, so those parts show what
 they show there — for example the Containers section's "No Container Engine" state — rather than
 mock data.
 
@@ -87,6 +92,13 @@ Implemented:
   Tailscale client's local API.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity,
   available space (APFS containers counted once), bus, mount points and APFS snapshot count.
+- **Thermals** — a schematic top view of the logic board with each component (performance and
+  efficiency cores, GPU, memory, SSD, Wi‑Fi, power delivery) coloured by its temperature, the fans
+  with their speed at the sides and the battery with its health below; CPU/GPU temperature chart,
+  per-component readings, fan ranges. Read from the System Management Controller (undocumented,
+  labelled).
+- **Battery health** — maximum capacity, cycle count, full-charge and design capacity, battery
+  temperature (Energy and Thermals pages).
 - **USB** — its own section with a tree diagram: this Mac → buses → hubs → devices, connectors
   coloured and labelled by negotiated link speed, and the bus power allocated to each device (an
   allocation reported by macOS, not a measurement — labelled).
@@ -216,10 +228,20 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 Alternatively run the Release workflow manually on `main` with a version (e.g. `0.1.0`); it tags
-that commit and publishes the release. Publishing a release from the GitHub UI also attaches a
+that commit and publishes the release (it skips the tests the merged pull request already passed,
+unless `run_tests` is set). Publishing a release from the GitHub UI also attaches a
 DMG. `0.x` versions are marked as pre-releases.
 
 ## Privacy
 
-All telemetry stays on your Mac. PulseDeck has no analytics, makes no network requests and never
-transmits process names or system statistics.
+All telemetry stays on your Mac. PulseDeck has no analytics, makes no requests to the internet and
+never transmits process names or system statistics. The only connections it opens are to local
+services on the same Mac — the Docker engine's socket and the Tailscale client's local API — and
+only while their pages are shown.
+
+## License
+
+PulseDeck is free software: you can redistribute it and/or modify it under the terms of the
+[GNU Affero General Public License v3.0](LICENSE) as published by the Free Software Foundation.
+It is distributed in the hope that it will be useful, but without any warranty; see the license
+for details.

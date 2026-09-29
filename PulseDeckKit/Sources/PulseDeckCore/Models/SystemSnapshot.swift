@@ -28,8 +28,9 @@ public struct SystemSnapshot: Sendable {
     public var tailscale: MetricState<TailscaleSnapshot>
     public var containers: MetricState<ContainersSnapshot>
     public var usb: MetricState<USBSnapshot>
+    public var thermals: MetricState<ThermalSnapshot>
 
-    public init(sequence: UInt64, timestamp: SampleTimestamp, samplingMode: SamplingPolicy.Mode, cpu: MetricState<CPUSnapshot>, memory: MetricState<MemorySnapshot>, disks: MetricState<[DiskSnapshot]>, network: MetricState<NetworkSnapshot>, gpu: MetricState<GPUSnapshot>, energy: MetricState<EnergySnapshot>, processes: MetricState<[ProcessSnapshot]>, cpuFrequency: MetricState<CPUFrequencySnapshot> = .notSampled, tailscale: MetricState<TailscaleSnapshot> = .notSampled, containers: MetricState<ContainersSnapshot> = .notSampled, usb: MetricState<USBSnapshot> = .notSampled) {
+    public init(sequence: UInt64, timestamp: SampleTimestamp, samplingMode: SamplingPolicy.Mode, cpu: MetricState<CPUSnapshot>, memory: MetricState<MemorySnapshot>, disks: MetricState<[DiskSnapshot]>, network: MetricState<NetworkSnapshot>, gpu: MetricState<GPUSnapshot>, energy: MetricState<EnergySnapshot>, processes: MetricState<[ProcessSnapshot]>, cpuFrequency: MetricState<CPUFrequencySnapshot> = .notSampled, tailscale: MetricState<TailscaleSnapshot> = .notSampled, containers: MetricState<ContainersSnapshot> = .notSampled, usb: MetricState<USBSnapshot> = .notSampled, thermals: MetricState<ThermalSnapshot> = .notSampled) {
         self.sequence = sequence
         self.timestamp = timestamp
         self.samplingMode = samplingMode
@@ -44,5 +45,6 @@ public struct SystemSnapshot: Sendable {
         self.tailscale = tailscale
         self.containers = containers
         self.usb = usb
+        self.thermals = thermals
     }
 }

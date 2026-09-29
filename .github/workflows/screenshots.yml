@@ -10,6 +10,9 @@ on:
         description: Commit the images to docs/images on this branch
         type: boolean
         default: false
+      pages:
+        description: 'Window captures to take, space-separated names (e.g. "thermals-dark energy-light"), or "all" (also menu bar, icon and DMG)'
+        default: all
 
 permissions:
   contents: write
@@ -37,6 +40,8 @@ jobs:
             | tail -n 5
 
       - name: Capture main window
+        env:
+          PAGES: ${{ inputs.pages }}
         run: |
           mkdir -p "$OUT"
           # Apple Events may wait for an Automation consent prompt nobody can answer.
@@ -53,11 +58,13 @@ jobs:
           }
           capture() {
             local name="$1" dark="$2"; shift 2
+            # Only the requested pages: each capture costs about 40 s of runner time.
+            if [[ "$PAGES" != all && " $PAGES " != *" $name "* ]]; then return; fi
             set_dark_mode "$dark"
             # `open` launches like Finder does, so the app becomes active and its window key.
             open -n "$APP" --args "$@"
             # Let a good part of the 60-second history fill before capturing.
-            sleep 40
+            sleep 30
             with_timeout osascript -e 'tell application "PulseDeck" to activate' || true
             sleep 2
             swift scripts/capture-window.swift PulseDeck "$OUT/$name.png" 600 2000
@@ -81,9 +88,11 @@ jobs:
           capture disk-details-dark true -navigationPresentation topBar -initialCategory disks -initialScrollAnchor bottom
           capture usb-light false -navigationPresentation topBar -initialSection usb
           capture containers-dark true -navigationPresentation topBar -initialSection containers
+          capture thermals-dark true -navigationPresentation topBar -initialCategory thermals
           set_dark_mode false
 
       - name: Capture menu bar panel
+        if: inputs.pages == 'all'
         # Best effort: clicking the status item needs Accessibility access for the runner's
         # shell. Without it the step leaves no image and the README keeps the previous one.
         continue-on-error: true
@@ -106,12 +115,14 @@ jobs:
           defaults delete -g AppleInterfaceStyle 2>/dev/null || true
 
       - name: Export rendered app icon
+        if: inputs.pages == 'all'
         run: |
           icns=$(find "$APP/Contents/Resources" -name '*.icns' | head -n 1)
           echo "icns: $icns"
           sips -s format png -Z 512 "$icns" --out "$OUT/app-icon.png"
 
       - name: Capture DMG window
+        if: inputs.pages == 'all'
         run: |
           scripts/build-dmg.sh "$APP" preview build/PulseDeck-preview.dmg
           hdiutil attach build/PulseDeck-preview.dmg -mountpoint "/Volumes/PulseDeck preview"

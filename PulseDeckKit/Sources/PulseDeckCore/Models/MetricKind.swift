@@ -16,6 +16,7 @@ public enum MetricKind: String, CaseIterable, Hashable, Sendable {
     case containers
     /// USB tree (USB page only).
     case usb
+    case thermals
 
     /// Domains that are cheap enough (a single syscall/IOKit read per tick) to sample
     /// continuously so their history stays complete while the window is closed.
