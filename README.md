@@ -19,9 +19,10 @@
 ---
 
 > [!IMPORTANT]
-> **Early development.** CPU, memory, network, disk, GPU and energy monitoring and the process
-> table are live (Milestones 2–8), with 60-second charts and hover inspection. Values macOS does not
-> provide reliably show **Not Available**. PulseDeck never displays invented or placeholder values.
+> **Pre-release (0.x).** All planned milestones are implemented: CPU, memory, disks, network
+> (including Wi‑Fi and Tailscale), GPU, energy, USB, processes and Docker containers, with
+> 60-second charts and hover inspection. Values macOS does not provide reliably show
+> **Not Available**. PulseDeck never displays invented or placeholder values.
 
 ## Screenshots
 
@@ -48,13 +49,24 @@
 |---|---|
 | <img src="docs/images/processes-light.png" alt="Process table sorted by CPU"> | <img src="docs/images/processes-dark.png" alt="Process table with sidebar navigation, dark appearance"> |
 
+| Memory by process and compression | Disk details: bus, mount points, snapshots |
+|---|---|
+| <img src="docs/images/memory-pie-dark.png" alt="Pie chart of memory by process and the memory compression chart, dark appearance"> | <img src="docs/images/disk-details-dark.png" alt="Disk page scrolled to capacity and device details, dark appearance"> |
+
+| USB tree | Containers |
+|---|---|
+| <img src="docs/images/usb-light.png" alt="USB section: tree diagram of buses and devices with link speeds and allocated power"> | <img src="docs/images/containers-dark.png" alt="Containers section without a running Docker engine, dark appearance"> |
+
 | Top bar navigation | Sidebar navigation |
 |---|---|
 | <img src="docs/images/performance-dark.png" alt="Performance view, dark appearance"> | <img src="docs/images/sidebar-light.png" alt="Sidebar navigation, light appearance"> |
 
 Screenshots are captured automatically from the real app with live data on a macOS 26 runner
 (a virtual machine, hence "Apple M2 Pro (Virtual)" and the VirtIO disk) by the
-[Screenshots workflow](.github/workflows/screenshots.yml).
+[Screenshots workflow](.github/workflows/screenshots.yml). The runner has no Wi‑Fi, Tailscale,
+Docker engine or CPU frequency sensors and only two virtual USB devices, so those parts show what
+they show there — for example the Containers section's "No Container Engine" state — rather than
+mock data.
 
 ## Features
 
@@ -64,8 +76,9 @@ Implemented:
   per-logical-processor charts with P/E cores coloured apart; cluster frequencies (from the private
   IOReport library, labelled); uptime; model name and core counts.
 - **Memory** — used (App Memory + Wired + Compressed), available, wired, compressed, cached files,
-  free, swap and memory pressure, with a composition bar or pie chart and a compression chart
-  (compressed vs. original size, ratio).
+  free, swap and memory pressure, with a composition bar, a compression chart (compressed vs.
+  original size, ratio) and an optional pie chart of the processes using the most memory (five
+  largest, grouped by name, plus the rest).
 - **Network** — every interface individually (Ethernet, Wi‑Fi, Thunderbolt, bridges, VPN/tunnels),
   download/upload rates from 64-bit kernel counters, totals, local IPv4/IPv6 addresses, negotiated
   link speed, Wi‑Fi standard/rate/channel/signal, and hot-plug/VPN reconnect handling.
@@ -74,8 +87,9 @@ Implemented:
   Tailscale client's local API.
 - **Disks** — every storage device with read/write throughput, cumulative transfer, capacity,
   available space (APFS containers counted once), bus, mount points and APFS snapshot count.
-- **USB** — a tree of every bus, hub and device with its negotiated link speed and the bus power
-  allocated to it (an allocation reported by macOS, not a measurement — labelled).
+- **USB** — its own section with a tree diagram: this Mac → buses → hubs → devices, connectors
+  coloured and labelled by negotiated link speed, and the bus power allocated to each device (an
+  allocation reported by macOS, not a measurement — labelled).
 - **Containers** — local Docker containers (Colima, Docker Desktop or any local Docker socket) with
   CPU, memory, network and ports; Start, Stop and Restart.
 - **GPU** — every Metal device (name, integrated/discrete, unified memory, location) and

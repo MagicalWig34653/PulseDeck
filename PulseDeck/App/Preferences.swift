@@ -12,12 +12,17 @@ enum PreferenceKey {
     /// Charts scroll continuously between samples while the window is active.
     static let smoothChartScrolling = "smoothChartScrolling"
     static let chartGridStyle = "chartGridStyle"
+    /// Memory page: pie chart of memory by process (samples processes while shown).
+    static let memoryProcessPie = "memoryProcessPie"
     /// Disks and network interfaces shown/hidden in the Performance list (JSON).
     static let sidebarVisibility = "sidebarVisibility"
     /// Performance page to open at launch (not shown in Settings; used for screenshots).
     static let initialCategory = "initialCategory"
     /// Section to open at launch, `performance` or `processes` (used for screenshots).
     static let initialSection = "initialSection"
+    /// `bottom` opens Performance pages scrolled to their end (used for screenshots of the lower
+    /// sections).
+    static let initialScrollAnchor = "initialScrollAnchor"
 }
 
 /// Scene identifiers.

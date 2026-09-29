@@ -90,6 +90,8 @@ private struct TopBarNavigation: View {
                 ProcessesView()
             case .containers:
                 ContainersView()
+            case .usb:
+                USBView()
             }
         }
         .toolbar {
@@ -122,6 +124,7 @@ private struct SidebarNavigation: View {
         case performance(PerformanceItem)
         case processes
         case containers
+        case usb
     }
 
     private var selection: Binding<Entry?> {
@@ -130,6 +133,7 @@ private struct SidebarNavigation: View {
             case .performance: .performance(appState.resolve(item))
             case .processes: .processes
             case .containers: .containers
+            case .usb: .usb
             }
         } set: { entry in
             switch entry {
@@ -140,6 +144,8 @@ private struct SidebarNavigation: View {
                 section = .processes
             case .containers?:
                 section = .containers
+            case .usb?:
+                section = .usb
             case nil:
                 break
             }
@@ -170,6 +176,12 @@ private struct SidebarNavigation: View {
                         Image(systemName: AppSection.containers.systemImage)
                     }
                     .tag(Entry.containers)
+                    Label {
+                        Text(AppSection.usb.title)
+                    } icon: {
+                        Image(systemName: AppSection.usb.systemImage)
+                    }
+                    .tag(Entry.usb)
                 }
             }
             .navigationSplitViewColumnWidth(min: 240, ideal: 270)
@@ -181,6 +193,8 @@ private struct SidebarNavigation: View {
                 ProcessesView()
             case .containers:
                 ContainersView()
+            case .usb:
+                USBView()
             }
         }
     }

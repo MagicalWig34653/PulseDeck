@@ -35,8 +35,8 @@ final class AppState {
     /// Last container list, kept like `latestProcesses` while the Containers section is shown.
     private(set) var latestContainers: MetricState<ContainersSnapshot>? = nil
 
-    /// Last USB tree. Kept after leaving the USB page so its list entry can still show the
-    /// device count; the tree is only re-read while the page is visible.
+    /// Last USB tree, shown while the first sample after opening the USB section is pending.
+    /// The tree is only re-read while the section is visible.
     private(set) var latestUSB: USBSnapshot? = nil
 
     /// Display updates are paused while Control is held (like Task Manager). Sampling continues;
@@ -296,6 +296,7 @@ final class AppState {
         case .performance?: .performance
         case .processes?: .processes
         case .containers?: .containers
+        case .usb?: .usb
         case nil: nil
         }
         let state = ObservationState(

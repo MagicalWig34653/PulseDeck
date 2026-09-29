@@ -5,6 +5,7 @@ public struct ObservationState: Hashable, Sendable {
         case performance
         case processes
         case containers
+        case usb
     }
 
     /// The main window is at least partly visible (not closed, minimised or fully covered).
@@ -19,7 +20,7 @@ public struct ObservationState: Hashable, Sendable {
     /// Domain needed by the live metric in the menu bar, if one is selected.
     public var menuBarMetricKind: MetricKind?
     /// Extra domains the Performance page on screen needs beyond the list previews (CPU page →
-    /// frequency, Tailscale interface → peers, USB page → USB tree).
+    /// frequency, Tailscale interface → peers, Memory page pie chart → processes).
     public var detailPageDemand: Set<MetricKind>
 
     public init(isMainWindowVisible: Bool = false, visibleSection: Section? = nil, showsResourcePreviewsInEverySection: Bool = false, isMenuBarPanelVisible: Bool = false, menuBarMetricKind: MetricKind? = nil, detailPageDemand: Set<MetricKind> = []) {
@@ -55,6 +56,9 @@ public enum SamplingDemand {
             }
             if section == .containers {
                 demand.insert(.containers)
+            }
+            if section == .usb {
+                demand.insert(.usb)
             }
             if section == .performance {
                 demand.formUnion(state.detailPageDemand)

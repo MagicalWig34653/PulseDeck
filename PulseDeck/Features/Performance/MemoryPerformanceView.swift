@@ -2,32 +2,11 @@ import Charts
 import PulseDeckCore
 import SwiftUI
 
-/// Memory page (SPEC §14): used-memory chart, compression chart, composition as bar or pie
-/// chart, and statistics.
+/// Memory page (SPEC §14): used-memory chart, composition bar, optional pie chart of memory by
+/// process, compression chart and statistics.
 struct MemoryPerformanceView: View {
     @Environment(AppState.self) private var appState
-    @AppStorage("memoryCompositionStyle") private var compositionStyle: CompositionStyle = .bar
-
-    enum CompositionStyle: String, CaseIterable, Identifiable {
-        case bar
-        case pie
-
-        var id: Self { self }
-
-        var title: LocalizedStringResource {
-            switch self {
-            case .bar: "Bar"
-            case .pie: "Pie Chart"
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .bar: "rectangle.split.3x1"
-            case .pie: "chart.pie"
-            }
-        }
-    }
+    @AppStorage(PreferenceKey.memoryProcessPie) private var showsProcessPie = false
 
     private var state: MetricState<MemorySnapshot>? { appState.latestSnapshot?.memory }
 
@@ -80,10 +59,7 @@ struct MemoryPerformanceView: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         if let memory = state?.value {
-                            switch compositionStyle {
-                            case .bar: MemoryCompositionBar(memory: memory)
-                            case .pie: MemoryCompositionPie(memory: memory)
-                            }
+                            MemoryCompositionBar(memory: memory)
                         }
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 16, alignment: .topLeading)],
                                   alignment: .leading, spacing: 14) {
@@ -97,25 +73,30 @@ struct MemoryPerformanceView: View {
                     }
                     .padding(8)
                 } label: {
+                    Text("Composition")
+                        .font(.headline)
+                }
+
+                GroupBox {
+                    if showsProcessPie {
+                        ProcessMemoryPie(processes: appState.latestSnapshot?.processes)
+                            .padding(8)
+                    } else {
+                        Text("Shows which apps and processes use the most memory. Turning it on samples all processes while this page is open.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                    }
+                } label: {
                     HStack {
-                        Text("Composition")
+                        Text("Memory by Process")
                             .font(.headline)
                         Spacer()
-                        Picker("Style", selection: $compositionStyle) {
-                            ForEach(CompositionStyle.allCases) { style in
-                                Label {
-                                    Text(style.title)
-                                } icon: {
-                                    Image(systemName: style.systemImage)
-                                }
-                                .tag(style)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelStyle(.iconOnly)
-                        .labelsHidden()
-                        .controlSize(.small)
-                        .fixedSize()
+                        Toggle("Show pie chart", isOn: $showsProcessPie)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
                     }
                 }
 
@@ -165,62 +146,77 @@ extension MemoryPerformanceView {
     static let minimumCompressionScale = 64.0 * 1_048_576
 }
 
-/// Pie chart of physical memory, at most six slices: the four composition parts, free memory,
-/// and whatever the counters leave unassigned ("Other").
-private struct MemoryCompositionPie: View {
-    let memory: MemorySnapshot
+/// Pie chart of memory by process: the five largest consumers (grouped by name) and the rest,
+/// by physical footprint — the value Activity Monitor's Memory column shows. At most six slices.
+private struct ProcessMemoryPie: View {
+    let processes: MetricState<[ProcessSnapshot]>?
 
-    private struct Slice: Identifiable {
-        let id: Int
-        let label: LocalizedStringResource
-        let bytes: UInt64
-        let color: Color
-    }
-
-    private var slices: [Slice] {
-        var slices = [
-            Slice(id: 0, label: "App Memory", bytes: memory.appMemory, color: .purple),
-            Slice(id: 1, label: "Wired", bytes: memory.wired, color: .orange),
-            Slice(id: 2, label: "Compressed", bytes: memory.compressed, color: .pink),
-            Slice(id: 3, label: "Cached Files", bytes: memory.cachedFiles, color: .teal),
-            Slice(id: 4, label: "Free", bytes: memory.free, color: .gray.opacity(0.35)),
-        ]
-        let assigned = slices.reduce(UInt64(0)) { $0 &+ $1.bytes }
-        if memory.physicalTotal > assigned {
-            slices.append(Slice(id: 5, label: "Other", bytes: memory.physicalTotal - assigned, color: .secondary.opacity(0.25)))
-        }
-        return slices.filter { $0.bytes > 0 }
-    }
+    private static let colors: [Color] = [.purple, .blue, .teal, .green, .orange]
+    private static let otherColor = Color.gray.opacity(0.45)
 
     var body: some View {
-        HStack(alignment: .center, spacing: 24) {
-            Chart(slices) { slice in
-                SectorMark(angle: .value("Bytes", Double(slice.bytes)), innerRadius: .ratio(0.55), angularInset: 1)
-                    .foregroundStyle(slice.color)
-            }
-            .chartLegend(.hidden)
-            .frame(width: 150, height: 150)
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(slices) { slice in
-                    HStack(spacing: 6) {
-                        Circle().fill(slice.color).frame(width: 8, height: 8)
-                        Text(slice.label)
-                        Spacer(minLength: 12)
-                        Text(verbatim: Format.memory(slice.bytes))
-                            .monospacedDigit()
-                        Text(verbatim: Format.percent(Double(slice.bytes) / Double(max(memory.physicalTotal, 1))))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(minWidth: 40, alignment: .trailing)
-                    }
-                    .font(.callout)
+        switch processes {
+        case .available(let processes)?:
+            chart(ProcessMemoryBreakdown(processes: processes))
+        case .unavailable(let reason)? where !reason.isTransient:
+            StatisticView(label: "Memory by Process", value: .unavailable(reason))
+        default:
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, minHeight: 150)
+        }
+    }
+
+    private func color(of slice: ProcessMemoryBreakdown.Slice, at index: Int) -> Color {
+        slice.isOther ? Self.otherColor : Self.colors[index % Self.colors.count]
+    }
+
+    private func label(of slice: ProcessMemoryBreakdown.Slice) -> String {
+        guard let name = slice.name else {
+            return String(localized: "Other processes (\(slice.processCount))")
+        }
+        return slice.processCount > 1 ? "\(name) (\(slice.processCount))" : name
+    }
+
+    private func chart(_ breakdown: ProcessMemoryBreakdown) -> some View {
+        let slices = Array(breakdown.slices.enumerated())
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 24) {
+                Chart(slices, id: \.element.id) { index, slice in
+                    SectorMark(angle: .value("Bytes", Double(slice.bytes)), innerRadius: .ratio(0.55), angularInset: 1)
+                        .foregroundStyle(color(of: slice, at: index))
                 }
+                .chartLegend(.hidden)
+                .frame(width: 150, height: 150)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(slices, id: \.element.id) { index, slice in
+                        HStack(spacing: 6) {
+                            Circle().fill(color(of: slice, at: index)).frame(width: 8, height: 8)
+                            Text(verbatim: label(of: slice))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer(minLength: 12)
+                            Text(verbatim: Format.memory(slice.bytes))
+                                .monospacedDigit()
+                            Text(verbatim: Format.percent(Double(slice.bytes) / Double(max(breakdown.totalBytes, 1))))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 40, alignment: .trailing)
+                        }
+                        .font(.callout)
+                    }
+                }
+                .frame(maxWidth: 360)
             }
-            .frame(maxWidth: 320)
+            if breakdown.excludedProcessCount > 0 {
+                Text("\(breakdown.excludedProcessCount) processes of other users are not included: macOS does not report their memory.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Memory composition"))
-        .accessibilityValue(Text(verbatim: slices.map { "\(String(localized: $0.label)) \(Format.memory($0.bytes))" }.joined(separator: ", ")))
+        .accessibilityLabel(Text("Memory by process"))
+        .accessibilityValue(Text(verbatim: breakdown.slices.map { "\(label(of: $0)) \(Format.memory($0.bytes))" }.joined(separator: ", ")))
     }
 }
 

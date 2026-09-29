@@ -72,9 +72,6 @@ struct PerformanceItemRow: View {
     /// "disk0 · R 1.2 MB/s · W 0 kB/s", "en0 · ↓ 12 kB/s ↑ 3 kB/s".
     private var preview: MetricState<String>? {
         switch item {
-        case .category(.usb):
-            // The tree is read only while the USB page is open; show the last known count.
-            return .available(appState.latestUSB?.devicesDescription ?? String(localized: "Buses and devices"))
         case .category(let category):
             return appState.latestSnapshot?.preview(for: category)
         case .disk(let id):
