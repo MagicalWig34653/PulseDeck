@@ -13,9 +13,7 @@ struct ResourceDetailView: View {
             switch item {
             case .category(.cpu):
                 CPUPerformanceView()
-            case .category(.thermals):
-            return [.thermals]
-        case .category(.memory):
+            case .category(.memory):
                 MemoryPerformanceView()
             case .category(.disks):
                 DiskPerformanceView(diskID: nil)
