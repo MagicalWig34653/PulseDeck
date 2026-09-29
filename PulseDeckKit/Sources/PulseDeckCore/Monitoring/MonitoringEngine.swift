@@ -119,6 +119,10 @@ public actor MonitoringEngine {
         await providers.gpu?.invalidateBaselines()
         await providers.energy?.invalidateBaselines()
         await providers.processes?.invalidateBaselines()
+        await providers.cpuFrequency?.invalidateBaselines()
+        await providers.tailscale?.invalidateBaselines()
+        await providers.containers?.invalidateBaselines()
+        await providers.usb?.invalidateBaselines()
     }
 
     /// Capability of every domain. Domains without a collector are `.unsupported(.notImplemented)`.
@@ -135,6 +139,10 @@ public actor MonitoringEngine {
             .gpu: await probe(providers.gpu),
             .energy: await probe(providers.energy),
             .processes: await probe(providers.processes),
+            .cpuFrequency: await probe(providers.cpuFrequency),
+            .tailscale: await probe(providers.tailscale),
+            .containers: await probe(providers.containers),
+            .usb: await probe(providers.usb),
         ]
     }
 
@@ -157,6 +165,10 @@ public actor MonitoringEngine {
         async let gpu = Self.collect(providers.gpu, kind: .gpu, policy: policy, at: instant)
         async let energy = Self.collect(providers.energy, kind: .energy, policy: policy, at: instant)
         async let processes = Self.collect(providers.processes, kind: .processes, policy: policy, at: instant)
+        async let cpuFrequency = Self.collect(providers.cpuFrequency, kind: .cpuFrequency, policy: policy, at: instant)
+        async let tailscale = Self.collect(providers.tailscale, kind: .tailscale, policy: policy, at: instant)
+        async let containers = Self.collect(providers.containers, kind: .containers, policy: policy, at: instant)
+        async let usb = Self.collect(providers.usb, kind: .usb, policy: policy, at: instant)
 
         return SystemSnapshot(
             sequence: sequence,
@@ -168,7 +180,11 @@ public actor MonitoringEngine {
             network: await network,
             gpu: await gpu,
             energy: await energy,
-            processes: await processes
+            processes: await processes,
+            cpuFrequency: await cpuFrequency,
+            tailscale: await tailscale,
+            containers: await containers,
+            usb: await usb
         )
     }
 

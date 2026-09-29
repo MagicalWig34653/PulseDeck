@@ -4,6 +4,7 @@ public struct ObservationState: Hashable, Sendable {
     public enum Section: Hashable, Sendable {
         case performance
         case processes
+        case containers
     }
 
     /// The main window is at least partly visible (not closed, minimised or fully covered).
@@ -17,13 +18,17 @@ public struct ObservationState: Hashable, Sendable {
     public var isMenuBarPanelVisible: Bool
     /// Domain needed by the live metric in the menu bar, if one is selected.
     public var menuBarMetricKind: MetricKind?
+    /// Extra domains the Performance page on screen needs beyond the list previews (CPU page →
+    /// frequency, Tailscale interface → peers, USB page → USB tree).
+    public var detailPageDemand: Set<MetricKind>
 
-    public init(isMainWindowVisible: Bool = false, visibleSection: Section? = nil, showsResourcePreviewsInEverySection: Bool = false, isMenuBarPanelVisible: Bool = false, menuBarMetricKind: MetricKind? = nil) {
+    public init(isMainWindowVisible: Bool = false, visibleSection: Section? = nil, showsResourcePreviewsInEverySection: Bool = false, isMenuBarPanelVisible: Bool = false, menuBarMetricKind: MetricKind? = nil, detailPageDemand: Set<MetricKind> = []) {
         self.isMainWindowVisible = isMainWindowVisible
         self.visibleSection = visibleSection
         self.showsResourcePreviewsInEverySection = showsResourcePreviewsInEverySection
         self.isMenuBarPanelVisible = isMenuBarPanelVisible
         self.menuBarMetricKind = menuBarMetricKind
+        self.detailPageDemand = detailPageDemand
     }
 }
 
@@ -35,7 +40,11 @@ public enum SamplingDemand {
     /// - GPU and energy only while their previews are visible (Performance section, sidebar
     ///   previews, menu bar panel) or the menu bar metric needs them.
     /// - Processes only while the Processes section is visible (the most expensive collector).
-    public static func policy(for state: ObservationState, backgroundInterval: Duration = SamplingPolicy.defaultBackgroundInterval) -> SamplingPolicy {
+    public static func policy(
+        for state: ObservationState,
+        foregroundInterval: Duration = SamplingPolicy.defaultForegroundInterval,
+        backgroundInterval: Duration = SamplingPolicy.defaultBackgroundInterval
+    ) -> SamplingPolicy {
         var demand: Set<MetricKind> = []
         if state.isMainWindowVisible, let section = state.visibleSection {
             if section == .performance || state.showsResourcePreviewsInEverySection {
@@ -43,6 +52,12 @@ public enum SamplingDemand {
             }
             if section == .processes {
                 demand.insert(.processes)
+            }
+            if section == .containers {
+                demand.insert(.containers)
+            }
+            if section == .performance {
+                demand.formUnion(state.detailPageDemand)
             }
         }
         if state.isMenuBarPanelVisible {
@@ -54,6 +69,7 @@ public enum SamplingDemand {
         let isForeground = state.isMainWindowVisible || state.isMenuBarPanelVisible
         return SamplingPolicy(
             mode: isForeground ? .foreground : .background,
+            foregroundInterval: foregroundInterval,
             backgroundInterval: backgroundInterval,
             demand: demand
         )

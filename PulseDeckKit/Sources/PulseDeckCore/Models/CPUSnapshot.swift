@@ -1,3 +1,11 @@
+import Foundation
+
+/// Core type of a logical processor on Apple silicon.
+public enum CoreType: Hashable, Sendable {
+    case performance
+    case efficiency
+}
+
 /// Static CPU description, read once at launch.
 public struct CPUInfo: Hashable, Sendable {
     /// Marketing/model name, e.g. from `machdep.cpu.brand_string`. `nil` if unavailable.
@@ -7,6 +15,11 @@ public struct CPUInfo: Hashable, Sendable {
     public var physicalCoreCount: Int?
     /// Performance levels (P/E clusters) where the OS reports them.
     public var performanceLevels: [PerformanceLevel]
+    /// Core type per logical processor index (undocumented IORegistry `cluster-type`); empty when
+    /// unknown, in which case the UI does not color cores by type.
+    public var coreTypes: [CoreType]
+    /// Wall-clock boot time (`kern.boottime`), for uptime.
+    public var bootTime: Date?
 
     public struct PerformanceLevel: Hashable, Sendable {
         public var name: String
@@ -20,11 +33,18 @@ public struct CPUInfo: Hashable, Sendable {
         }
     }
 
-    public init(modelName: String?, logicalProcessorCount: Int, physicalCoreCount: Int?, performanceLevels: [PerformanceLevel]) {
+    public init(modelName: String?, logicalProcessorCount: Int, physicalCoreCount: Int?, performanceLevels: [PerformanceLevel], coreTypes: [CoreType] = [], bootTime: Date? = nil) {
         self.modelName = modelName
         self.logicalProcessorCount = logicalProcessorCount
         self.physicalCoreCount = physicalCoreCount
         self.performanceLevels = performanceLevels
+        self.coreTypes = coreTypes
+        self.bootTime = bootTime
+    }
+
+    /// Core type of logical processor `index`, `nil` if unknown.
+    public func coreType(ofProcessor index: Int) -> CoreType? {
+        coreTypes.indices.contains(index) ? coreTypes[index] : nil
     }
 }
 

@@ -196,7 +196,7 @@ struct SystemHistoryTests {
         #expect(history.cpu.samples[1].values == [0.25, 0.5])
         #expect(history.cpuCores.seriesCount == 2)
         #expect(history.cpuCores.latest?.values == [1.0, 0.5])
-        #expect(history.memory.samples[1].values == [nil, nil])
+        #expect(history.memory.samples[1].values == [nil, nil, nil, nil])
     }
 
     @Test func notSampledAddsNothing() {

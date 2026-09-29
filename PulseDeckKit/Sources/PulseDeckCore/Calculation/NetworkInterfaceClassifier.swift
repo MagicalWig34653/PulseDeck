@@ -27,15 +27,38 @@ public enum NetworkInterfaceClassifier {
     /// system services (e.g. iCloud Private Relay), so it is labelled generically.
     public static let tunnelPrefixes = ["utun", "ipsec", "ppp", "tun", "tap", "wg", "gif", "stf"]
 
+    /// Friendly name for a detected Tailscale interface.
+    public static let tailscaleName = "Tailscale"
+
+    /// Tailscale assigns every node an IPv6 address in its ULA prefix fd7a:115c:a1e0::/48 and an
+    /// IPv4 address in the CGNAT range 100.64.0.0/10. The IPv6 prefix alone is conclusive; the
+    /// CGNAT range only counts on a `utun` tunnel (carriers use it on other links too).
+    public static func isTailscale(bsdName: String, addresses: [String]) -> Bool {
+        if addresses.contains(where: { $0.lowercased().hasPrefix("fd7a:115c:a1e0:") }) { return true }
+        guard bsdName.hasPrefix("utun") else { return false }
+        return addresses.contains(where: isCarrierGradeNAT)
+    }
+
+    /// 100.64.0.0/10: first octet 100, second octet 64…127.
+    static func isCarrierGradeNAT(_ address: String) -> Bool {
+        let octets = address.split(separator: ".").compactMap { Int($0) }
+        guard octets.count == 4 else { return false }
+        return octets[0] == 100 && (64...127).contains(octets[1])
+    }
+
     public static func classify(
         bsdName: String,
         interfaceType: UInt8,
         isLoopback: Bool,
         systemConfigurationType: String?,
-        displayName: String?
+        displayName: String?,
+        addresses: [String] = []
     ) -> NetworkInterfaceKind {
         if isLoopback || interfaceType == InterfaceType.loopback {
             return .loopback
+        }
+        if isTailscale(bsdName: bsdName, addresses: addresses) {
+            return .vpnTunnel(friendlyName: tailscaleName)
         }
         let mentionsThunderbolt = displayName?.lowercased().contains("thunderbolt") ?? false
         switch systemConfigurationType {

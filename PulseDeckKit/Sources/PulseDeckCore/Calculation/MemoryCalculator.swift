@@ -12,8 +12,11 @@ public struct VMPageCounts: Hashable, Sendable {
     public var internalPages: UInt64
     /// File-backed pages (`external_page_count`).
     public var externalPages: UInt64
+    /// Pages of data held by the compressor, before compression
+    /// (`total_uncompressed_pages_in_compressor`).
+    public var uncompressedInCompressor: UInt64
 
-    public init(free: UInt64, active: UInt64, inactive: UInt64, wired: UInt64, speculative: UInt64, purgeable: UInt64, compressor: UInt64, internalPages: UInt64, externalPages: UInt64) {
+    public init(free: UInt64, active: UInt64, inactive: UInt64, wired: UInt64, speculative: UInt64, purgeable: UInt64, compressor: UInt64, internalPages: UInt64, externalPages: UInt64, uncompressedInCompressor: UInt64 = 0) {
         self.free = free
         self.active = active
         self.inactive = inactive
@@ -23,6 +26,7 @@ public struct VMPageCounts: Hashable, Sendable {
         self.compressor = compressor
         self.internalPages = internalPages
         self.externalPages = externalPages
+        self.uncompressedInCompressor = uncompressedInCompressor
     }
 }
 
@@ -52,6 +56,7 @@ public enum MemoryCalculator {
             appMemory: appMemory,
             wired: wired,
             compressed: compressed,
+            compressedOriginal: pages.uncompressedInCompressor * pageSize,
             cachedFiles: (pages.externalPages + pages.purgeable) * pageSize,
             free: pages.free * pageSize,
             swap: swap,

@@ -38,6 +38,9 @@ public struct MemorySnapshot: Hashable, Sendable {
     public var appMemory: UInt64
     public var wired: UInt64
     public var compressed: UInt64
+    /// Size of the data held by the compressor before compression
+    /// (`total_uncompressed_pages_in_compressor` × page size). `compressed` is what it occupies.
+    public var compressedOriginal: UInt64
     /// File-backed and purgeable memory the system can reclaim.
     public var cachedFiles: UInt64
     public var free: UInt64
@@ -49,17 +52,24 @@ public struct MemorySnapshot: Hashable, Sendable {
     /// `physicalTotal − used`.
     public var available: UInt64 { physicalTotal >= used ? physicalTotal - used : 0 }
 
+    /// Original size ÷ compressed size, e.g. 3.2 means data shrank to under a third. `nil` when
+    /// nothing is compressed.
+    public var compressionRatio: Double? {
+        compressed > 0 && compressedOriginal > 0 ? Double(compressedOriginal) / Double(compressed) : nil
+    }
+
     /// Used fraction of physical memory in `0...1`.
     public var usedFraction: Double {
         physicalTotal > 0 ? Double(used) / Double(physicalTotal) : 0
     }
 
-    public init(physicalTotal: UInt64, used: UInt64, appMemory: UInt64, wired: UInt64, compressed: UInt64, cachedFiles: UInt64, free: UInt64, swap: MetricState<SwapUsage>, pressure: MetricState<MemoryPressure>) {
+    public init(physicalTotal: UInt64, used: UInt64, appMemory: UInt64, wired: UInt64, compressed: UInt64, compressedOriginal: UInt64 = 0, cachedFiles: UInt64, free: UInt64, swap: MetricState<SwapUsage>, pressure: MetricState<MemoryPressure>) {
         self.physicalTotal = physicalTotal
         self.used = used
         self.appMemory = appMemory
         self.wired = wired
         self.compressed = compressed
+        self.compressedOriginal = compressedOriginal
         self.cachedFiles = cachedFiles
         self.free = free
         self.swap = swap
