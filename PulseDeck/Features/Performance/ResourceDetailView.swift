@@ -31,6 +31,7 @@ struct ResourceDetailView: View {
             }
         }
         .navigationTitle(Text(item.category.title))
+        .defaultScrollAnchor(Self.initialScrollAnchor)
         .onChange(of: demand, initial: true) {
             appState.detailPageDemand = demand
         }
@@ -38,6 +39,10 @@ struct ResourceDetailView: View {
             appState.detailPageDemand = []
         }
     }
+
+    /// Launch preference for screenshots; `nil` (top) otherwise.
+    private static let initialScrollAnchor: UnitPoint? =
+        UserDefaults.standard.string(forKey: PreferenceKey.initialScrollAnchor) == "bottom" ? .bottom : nil
 
     private var demand: Set<MetricKind> {
         switch item {

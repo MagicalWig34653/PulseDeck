@@ -18,6 +18,9 @@ enum PreferenceKey {
     static let initialCategory = "initialCategory"
     /// Section to open at launch, `performance` or `processes` (used for screenshots).
     static let initialSection = "initialSection"
+    /// `bottom` opens Performance pages scrolled to their end (used for screenshots of the lower
+    /// sections).
+    static let initialScrollAnchor = "initialScrollAnchor"
 }
 
 /// Scene identifiers.

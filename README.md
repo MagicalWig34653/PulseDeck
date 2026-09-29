@@ -19,9 +19,10 @@
 ---
 
 > [!IMPORTANT]
-> **Early development.** CPU, memory, network, disk, GPU and energy monitoring and the process
-> table are live (Milestones 2–8), with 60-second charts and hover inspection. Values macOS does not
-> provide reliably show **Not Available**. PulseDeck never displays invented or placeholder values.
+> **Pre-release (0.x).** All planned milestones are implemented: CPU, memory, disks, network
+> (including Wi‑Fi and Tailscale), GPU, energy, USB, processes and Docker containers, with
+> 60-second charts and hover inspection. Values macOS does not provide reliably show
+> **Not Available**. PulseDeck never displays invented or placeholder values.
 
 ## Screenshots
 
@@ -48,13 +49,24 @@
 |---|---|
 | <img src="docs/images/processes-light.png" alt="Process table sorted by CPU"> | <img src="docs/images/processes-dark.png" alt="Process table with sidebar navigation, dark appearance"> |
 
+| Memory: pie chart and compression | Disk details: bus, mount points, snapshots |
+|---|---|
+| <img src="docs/images/memory-pie-dark.png" alt="Memory composition as a pie chart and the memory compression chart, dark appearance"> | <img src="docs/images/disk-details-dark.png" alt="Disk page scrolled to capacity and device details, dark appearance"> |
+
+| USB tree | Containers |
+|---|---|
+| <img src="docs/images/usb-light.png" alt="USB page with buses, devices, link speeds and allocated power"> | <img src="docs/images/containers-dark.png" alt="Containers section without a running Docker engine, dark appearance"> |
+
 | Top bar navigation | Sidebar navigation |
 |---|---|
 | <img src="docs/images/performance-dark.png" alt="Performance view, dark appearance"> | <img src="docs/images/sidebar-light.png" alt="Sidebar navigation, light appearance"> |
 
 Screenshots are captured automatically from the real app with live data on a macOS 26 runner
 (a virtual machine, hence "Apple M2 Pro (Virtual)" and the VirtIO disk) by the
-[Screenshots workflow](.github/workflows/screenshots.yml).
+[Screenshots workflow](.github/workflows/screenshots.yml). The runner has no Wi‑Fi, Tailscale,
+Docker engine or CPU frequency sensors and only two virtual USB devices, so those parts show what
+they show there — for example the Containers section's "No Container Engine" state — rather than
+mock data.
 
 ## Features
 
