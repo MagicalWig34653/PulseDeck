@@ -35,6 +35,37 @@ final class AppState {
     /// Last container list, kept like `latestProcesses` while the Containers section is shown.
     private(set) var latestContainers: MetricState<ContainersSnapshot>? = nil
 
+    /// Last VM list, kept while the Virtual Machines section is shown.
+    private(set) var latestVMs: MetricState<VirtualMachinesSnapshot>? = nil
+
+    /// Per-VM chart history (host-side CPU, memory, disk). Observed through `vmHistoryRevision`.
+    @ObservationIgnored private var vmHistoryStorage = VMHistory()
+    private(set) var vmHistoryRevision: UInt64 = 0
+    var vmHistory: VMHistory {
+        _ = vmHistoryRevision
+        return vmHistoryStorage
+    }
+
+    /// Last flow list, kept while the Traffic section is shown.
+    private(set) var latestFlows: MetricState<NetworkFlowsSnapshot>? = nil
+
+    /// Bytes per destination, accumulated from every flow snapshot received since launch.
+    @ObservationIgnored private var flowLedgerStorage = FlowLedger()
+    private(set) var flowLedgerRevision: UInt64 = 0
+    var flowLedger: FlowLedger {
+        _ = flowLedgerRevision
+        return flowLedgerStorage
+    }
+
+    /// Keep recording flows while the Traffic section is closed (costs a little CPU).
+    var recordsTrafficInBackground: Bool {
+        didSet {
+            guard recordsTrafficInBackground != oldValue else { return }
+            defaults.set(recordsTrafficInBackground, forKey: PreferenceKey.recordTrafficInBackground)
+            pushPolicy()
+        }
+    }
+
     /// Last USB tree, shown while the first sample after opening the USB section is pending.
     /// The tree is only re-read while the section is visible.
     private(set) var latestUSB: USBSnapshot? = nil
@@ -77,6 +108,12 @@ final class AppState {
             }
             if visibleSection != .containers {
                 latestContainers = nil
+            }
+            if visibleSection != .machines {
+                latestVMs = nil
+            }
+            if visibleSection != .traffic {
+                latestFlows = nil
             }
             pushPolicy()
         }
@@ -167,6 +204,7 @@ final class AppState {
             .flatMap(MenuBarMetric.init(rawValue:)) ?? .none
         sidebarVisibility = defaults.data(forKey: PreferenceKey.sidebarVisibility)
             .flatMap { try? JSONDecoder().decode(SidebarVisibility.self, from: $0) } ?? SidebarVisibility()
+        recordsTrafficInBackground = defaults.bool(forKey: PreferenceKey.recordTrafficInBackground)
         backgroundRefreshInterval = BackgroundRefreshInterval(rawValue: defaults.integer(forKey: PreferenceKey.backgroundRefreshInterval)) ?? .standard
         foregroundRefreshInterval = ForegroundRefreshInterval(rawValue: defaults.integer(forKey: PreferenceKey.foregroundRefreshInterval)) ?? .standard
         let (stream, continuation) = AsyncStream.makeStream(of: EngineCommand.self)
@@ -237,8 +275,22 @@ final class AppState {
             updateMenuBarLabel(from: snapshot)
             return
         }
-        historyStorage.append(snapshot)
+        appendToHistories(snapshot)
         publish(snapshot)
+    }
+
+    /// Every snapshot, in order: chart history, per-VM history and the traffic ledger all need
+    /// each tick (also the ones replayed after a pause).
+    private func appendToHistories(_ snapshot: SystemSnapshot) {
+        historyStorage.append(snapshot)
+        if let machines = snapshot.virtualMachines.value {
+            vmHistoryStorage.ingest(machines, at: snapshot.timestamp)
+            vmHistoryRevision &+= 1
+        }
+        if let flows = snapshot.flows.value {
+            flowLedgerStorage.ingest(flows, at: snapshot.timestamp.wallClock)
+            flowLedgerRevision &+= 1
+        }
     }
 
     private func publish(_ snapshot: SystemSnapshot) {
@@ -253,6 +305,16 @@ final class AppState {
             // Keep the previous list.
         } else if visibleSection == .containers {
             latestContainers = snapshot.containers
+        }
+        if case .notSampled = snapshot.virtualMachines {
+            // Keep the previous list.
+        } else if visibleSection == .machines {
+            latestVMs = snapshot.virtualMachines
+        }
+        if case .notSampled = snapshot.flows {
+            // Keep the previous list.
+        } else if visibleSection == .traffic {
+            latestFlows = snapshot.flows
         }
         if let usb = snapshot.usb.value {
             latestUSB = usb
@@ -271,7 +333,7 @@ final class AppState {
         let pending = pausedSnapshots
         pausedSnapshots = []
         for snapshot in pending {
-            historyStorage.append(snapshot)
+            appendToHistories(snapshot)
         }
         if let newest = pending.last {
             publish(newest)
@@ -303,6 +365,8 @@ final class AppState {
         case .processes?: .processes
         case .containers?: .containers
         case .usb?: .usb
+        case .machines?: .machines
+        case .traffic?: .traffic
         case nil: nil
         }
         let state = ObservationState(
@@ -311,7 +375,8 @@ final class AppState {
             showsResourcePreviewsInEverySection: showsResourcePreviewsInEverySection,
             isMenuBarPanelVisible: isMenuBarWindowVisible,
             menuBarMetricKind: menuBarMetric.requiredMetricKind,
-            detailPageDemand: detailPageDemand
+            detailPageDemand: detailPageDemand,
+            recordsFlowsInBackground: recordsTrafficInBackground
         )
         return SamplingDemand.policy(
             for: state,

@@ -3,7 +3,7 @@ import PulseDeckCore
 
 /// Factory for the production collectors.
 public enum DarwinTelemetry {
-    /// All collectors. GPU, energy, processes, CPU frequency, Tailscale, containers, USB and thermals are
+    /// All collectors. GPU, energy, processes, CPU frequency, Tailscale, containers, USB, thermals, virtual machines and flows are
     /// demand-driven: the engine samples them only while something observes them
     /// (`SamplingPolicy.demand`).
     public static func makeProviders() -> TelemetryProviders {
@@ -19,7 +19,9 @@ public enum DarwinTelemetry {
             tailscale: TailscaleMonitor(),
             containers: ContainerMonitor(),
             usb: USBMonitor(),
-            thermals: ThermalMonitor()
+            thermals: ThermalMonitor(),
+            virtualMachines: VMMonitor(),
+            flows: FlowMonitor()
         )
     }
 }

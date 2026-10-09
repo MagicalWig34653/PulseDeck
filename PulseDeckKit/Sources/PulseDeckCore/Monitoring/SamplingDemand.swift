@@ -6,6 +6,8 @@ public struct ObservationState: Hashable, Sendable {
         case processes
         case containers
         case usb
+        case machines
+        case traffic
     }
 
     /// The main window is at least partly visible (not closed, minimised or fully covered).
@@ -22,14 +24,17 @@ public struct ObservationState: Hashable, Sendable {
     /// Extra domains the Performance page on screen needs beyond the list previews (CPU page →
     /// frequency, Tailscale interface → peers, Memory page pie chart → processes).
     public var detailPageDemand: Set<MetricKind>
+    /// The user chose to keep recording layer 3/4 flows while the Traffic section is closed.
+    public var recordsFlowsInBackground: Bool
 
-    public init(isMainWindowVisible: Bool = false, visibleSection: Section? = nil, showsResourcePreviewsInEverySection: Bool = false, isMenuBarPanelVisible: Bool = false, menuBarMetricKind: MetricKind? = nil, detailPageDemand: Set<MetricKind> = []) {
+    public init(isMainWindowVisible: Bool = false, visibleSection: Section? = nil, showsResourcePreviewsInEverySection: Bool = false, isMenuBarPanelVisible: Bool = false, menuBarMetricKind: MetricKind? = nil, detailPageDemand: Set<MetricKind> = [], recordsFlowsInBackground: Bool = false) {
         self.isMainWindowVisible = isMainWindowVisible
         self.visibleSection = visibleSection
         self.showsResourcePreviewsInEverySection = showsResourcePreviewsInEverySection
         self.isMenuBarPanelVisible = isMenuBarPanelVisible
         self.menuBarMetricKind = menuBarMetricKind
         self.detailPageDemand = detailPageDemand
+        self.recordsFlowsInBackground = recordsFlowsInBackground
     }
 }
 
@@ -60,12 +65,21 @@ public enum SamplingDemand {
             if section == .usb {
                 demand.insert(.usb)
             }
+            if section == .machines {
+                demand.insert(.virtualMachines)
+            }
+            if section == .traffic {
+                demand.insert(.flows)
+            }
             if section == .performance {
                 demand.formUnion(state.detailPageDemand)
             }
         }
         if state.isMenuBarPanelVisible {
             demand.formUnion([.gpu, .energy])
+        }
+        if state.recordsFlowsInBackground {
+            demand.insert(.flows)
         }
         if let kind = state.menuBarMetricKind, !MetricKind.alwaysSampled.contains(kind) {
             demand.insert(kind)

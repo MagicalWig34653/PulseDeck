@@ -29,8 +29,10 @@ public struct SystemSnapshot: Sendable {
     public var containers: MetricState<ContainersSnapshot>
     public var usb: MetricState<USBSnapshot>
     public var thermals: MetricState<ThermalSnapshot>
+    public var virtualMachines: MetricState<VirtualMachinesSnapshot>
+    public var flows: MetricState<NetworkFlowsSnapshot>
 
-    public init(sequence: UInt64, timestamp: SampleTimestamp, samplingMode: SamplingPolicy.Mode, cpu: MetricState<CPUSnapshot>, memory: MetricState<MemorySnapshot>, disks: MetricState<[DiskSnapshot]>, network: MetricState<NetworkSnapshot>, gpu: MetricState<GPUSnapshot>, energy: MetricState<EnergySnapshot>, processes: MetricState<[ProcessSnapshot]>, cpuFrequency: MetricState<CPUFrequencySnapshot> = .notSampled, tailscale: MetricState<TailscaleSnapshot> = .notSampled, containers: MetricState<ContainersSnapshot> = .notSampled, usb: MetricState<USBSnapshot> = .notSampled, thermals: MetricState<ThermalSnapshot> = .notSampled) {
+    public init(sequence: UInt64, timestamp: SampleTimestamp, samplingMode: SamplingPolicy.Mode, cpu: MetricState<CPUSnapshot>, memory: MetricState<MemorySnapshot>, disks: MetricState<[DiskSnapshot]>, network: MetricState<NetworkSnapshot>, gpu: MetricState<GPUSnapshot>, energy: MetricState<EnergySnapshot>, processes: MetricState<[ProcessSnapshot]>, cpuFrequency: MetricState<CPUFrequencySnapshot> = .notSampled, tailscale: MetricState<TailscaleSnapshot> = .notSampled, containers: MetricState<ContainersSnapshot> = .notSampled, usb: MetricState<USBSnapshot> = .notSampled, thermals: MetricState<ThermalSnapshot> = .notSampled, virtualMachines: MetricState<VirtualMachinesSnapshot> = .notSampled, flows: MetricState<NetworkFlowsSnapshot> = .notSampled) {
         self.sequence = sequence
         self.timestamp = timestamp
         self.samplingMode = samplingMode
@@ -46,5 +48,7 @@ public struct SystemSnapshot: Sendable {
         self.containers = containers
         self.usb = usb
         self.thermals = thermals
+        self.virtualMachines = virtualMachines
+        self.flows = flows
     }
 }

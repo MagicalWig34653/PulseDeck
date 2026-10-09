@@ -27,6 +27,7 @@ private struct GeneralSettings: View {
     @Environment(AppState.self) private var appState
     @AppStorage(PreferenceKey.smoothChartScrolling) private var smoothChartScrolling = true
     @AppStorage(PreferenceKey.chartGridStyle) private var chartGridStyle: ChartGridStyle = .scrolling
+    @AppStorage(PreferenceKey.resolveTrafficHostNames) private var resolveTrafficHostNames = true
     @AppStorage(PreferenceKey.showMainWindowAtLaunch) private var showMainWindowAtLaunch = true
     @AppStorage(PreferenceKey.keepRunningWhenWindowCloses) private var keepRunningWhenWindowCloses = true
     @State private var loginItem = LoginItemController()
@@ -50,6 +51,16 @@ private struct GeneralSettings: View {
                 Text("Updates")
             } footer: {
                 Text("Charts scroll smoothly only while the window is in front, and never with Reduce Motion. Hold Control to pause updates in the window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Record traffic while the window is closed", isOn: $appState.recordsTrafficInBackground)
+                Toggle("Look up host names of destinations", isOn: $resolveTrafficHostNames)
+            } header: {
+                Text("Traffic")
+            } footer: {
+                Text("Totals per destination only count what PulseDeck saw while it was recording. Host names are looked up with your Mac's DNS resolver (reverse lookups of the destination addresses).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -17,6 +17,10 @@ public enum MetricKind: String, CaseIterable, Hashable, Sendable {
     /// USB tree (USB page only).
     case usb
     case thermals
+    /// Virtual machines of the installed VM providers (Virtual Machines section only).
+    case virtualMachines
+    /// Layer 3/4 flows (Traffic section, or in the background when recording is enabled).
+    case flows
 
     /// Domains that are cheap enough (a single syscall/IOKit read per tick) to sample
     /// continuously so their history stays complete while the window is closed.
