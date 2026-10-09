@@ -325,6 +325,12 @@ final class AppState {
         updateMenuBarLabel()
     }
 
+    /// Forgets all accumulated destination totals (Traffic → Reset Totals).
+    func resetFlowLedger() {
+        flowLedgerStorage.reset()
+        flowLedgerRevision &+= 1
+    }
+
     /// Pauses or resumes display updates (Control held down).
     func setPaused(_ paused: Bool) {
         guard paused != isPaused else { return }
