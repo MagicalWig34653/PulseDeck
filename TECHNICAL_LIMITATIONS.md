@@ -250,6 +250,47 @@ Decisions by the product owner are recorded under each item.
   component and says the source is undocumented. Read only while the page is visible. The CI VM
   exposes no SMC sensors, so the mapping **needs a real Mac**.
 
+## L‑14 · Traffic per destination (flows with byte counters)
+
+- **Owner request:** a Traffic section — where the Mac's traffic goes at layer 3 (remote IP), with
+  layer 4 (TCP/UDP, port), process and bytes per destination.
+- **APIs investigated:**
+  - libproc (`proc_pidinfo(PROC_PIDLISTFDS)`, `proc_pidfdinfo(PROC_PIDFDSOCKETINFO)` →
+    `socket_fdinfo`): public, lists every TCP/UDP socket with addresses, ports and TCP state, but
+    **no byte counters** (see L‑4), and only for the user's own processes (`EPERM` otherwise).
+  - The kernel's network statistics control `com.apple.network.statistics` (what `nettop` and
+    Activity Monitor read through the private NetworkStatistics framework): reached with public
+    socket calls (`socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL)`, `ioctl(CTLIOCGINFO)`,
+    `connect`), no privileges or entitlements on macOS (`net.statistics_privcheck` = 0; only the
+    `CONN_USERLAND`/`UDP_SUBFLOW` providers always need one and are not used). It reports every
+    TCP/UDP socket and Skywalk/QUIC flow with cumulative byte counts, addresses, PID and process
+    name. **Undocumented:** the messages are only declared in the `PRIVATE` part of xnu's
+    `bsd/net/ntstat.h`, which Apple does not ship in the SDK and changes between releases
+    (descriptor sizes grew in macOS 14; detail messages were added in macOS 26).
+  - Network Extension content filters / packet tunnels: would see traffic but need a system
+    extension, user approval and sit in the data path — inappropriate for a monitor.
+- **Implementation (Traffic section):** `FlowMonitor` uses the network statistics control:
+  `ADD_ALL_SRCS` for the TCP, UDP and QUIC providers (`SUPPRESS_SRC_ADDED`), then every tick
+  `GET_UPDATE` for all sources in continuation fragments, plus the kernel's final update and
+  `SRC_REMOVED` for flows that close between ticks. The codec (`NStat`, `NStatDecoder`,
+  `NStatFlowTable` in PulseDeckCore) follows xnu-12377 (macOS 26) and was checked against the
+  macOS 13–15 headers; it validates every descriptor (sizes, `sa_family`/`sa_len`) and drops what
+  does not fit rather than reading wrong bytes. `FlowLedger` turns cumulative counters into bytes
+  per destination. The UI labels the source as undocumented.
+- **Fallback:** if the control cannot be opened or connected, refuses every subscription, breaks
+  mid-poll, or a complete first poll reports no sources, flows come from the libproc socket table
+  (`FlowSource.socketTable`): destinations, ports, processes and flow counts, but bytes are
+  *Not Available* ("—"). The control is retried every 60 s.
+- **Risk:** a future macOS may move descriptor fields (→ descriptors fail validation, flows are
+  dropped or the fallback takes over), rename or restrict the control (→ fallback), or require an
+  entitlement as iOS does. Byte counts are per socket: loopback traffic is counted at both ends;
+  sockets that close before PulseDeck connects are not counted. Reverse DNS names for
+  destinations come from `getnameinfo` (`HostNameResolver`), never for loopback, link-local,
+  multicast or unspecified addresses.
+- **Needs a real Mac:** per-process and per-destination bytes vs. `nettop -m tcp` / `nettop -m
+  udp`, QUIC (Safari HTTP/3) flows, the userland (Skywalk) providers, behaviour after sleep, and
+  CPU cost with thousands of sockets.
+
 ## L‑9 · Verification environment (process limitation, not a product limitation)
 
 - Milestone 1 was authored in a Linux container without Xcode. The platform-independent core was
