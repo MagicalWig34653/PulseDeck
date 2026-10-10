@@ -212,7 +212,7 @@ screenshots run is in progress, or its final `git push` is rejected.
 - `mach_task_self_` compiles fine in Swift 6 on Xcode 26.6.
 - The runner is a VM ("Apple M2 Pro (Virtual)", VirtIO disk, many mounted simulator disk images). That's expected.
 - Screenshot pages are selected with the `-initialCategory <cpu|memory|disks|network|gpu|energy|thermals>` launch preference
-  (`PreferenceKey.initialCategory`) or `-initialSection <processes|containers|usb>`; `-cpuChartMode logicalProcessors`
+  (`PreferenceKey.initialCategory`) or `-initialSection <processes|containers|usb|machines|traffic>`; `-cpuChartMode logicalProcessors`
   selects the per-core view, `-initialScrollAnchor bottom` scrolls pages down, `-memoryProcessPie YES` shows the pie.
 - On macOS 26 `PROC_PIDTBSDINFO` fails with `EPERM` for other users' processes (not only task info).
   Use `sysctl(KERN_PROC_PID)` → `kinfo_proc` for their identity; `p_starttime` is `p_un.__p_starttime` in Swift.
