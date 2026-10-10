@@ -114,7 +114,7 @@ public enum LimaInspector {
             guestOS: guestOS(yaml.string("os")),
             mountType: yaml.string("mountType"),
             sshPort: files.sshConfig.flatMap(LimaSSHConfig.port),
-            limaVersion: files.limaVersion?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+            limaVersion: files.limaVersion?.trimmingCharacters(in: .whitespacesAndNewlines).limaFamilyNonEmpty,
             hostProcessIDs: pids,
             startedAt: state == .stopped ? nil : files.hostAgentStartedAt,
             configurationReadable: files.limaYAML != nil
@@ -192,7 +192,8 @@ public enum LimaInspector {
 }
 
 extension String {
-    var nonEmpty: String? { isEmpty ? nil : self }
+    /// `nil` for the empty string (module-internal; named so it cannot clash with another helper).
+    var limaFamilyNonEmpty: String? { isEmpty ? nil : self }
 }
 
 public enum LimaSSHConfig {

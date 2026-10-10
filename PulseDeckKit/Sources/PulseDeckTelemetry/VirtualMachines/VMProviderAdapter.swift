@@ -35,6 +35,11 @@ public struct VMEnvironment: Sendable {
 public protocol VMProviderAdapter: Sendable {
     var id: VMProviderID { get }
 
+    /// How long `VMMonitor` reuses the previous `list` result before calling `list` again. Only
+    /// adapters whose listing runs a vendor command (no readable files) return a value above
+    /// `.zero`; the monitor still refreshes process-derived state and usage on every tick.
+    var minimumListInterval: Duration { get }
+
     /// Cheap check (file-system / bundle lookups only, no process spawn): is the provider
     /// installed or in use? Returns its version if readable without running anything.
     func detect(in environment: VMEnvironment) -> VMProviderInstall?
@@ -48,6 +53,11 @@ public protocol VMProviderAdapter: Sendable {
     /// already stopped a VM whose provider `editRequiresStopped`; when `restartIfRunning` the
     /// adapter must start it again afterwards.
     func apply(_ resources: VMResources, to machine: VirtualMachineSnapshot, restartIfRunning: Bool, in environment: VMEnvironment) async -> Result<Void, VMControlError>
+}
+
+extension VMProviderAdapter {
+    /// File-based listings are cheap: no throttling.
+    public var minimumListInterval: Duration { .zero }
 }
 
 public struct VMProviderInstall: Sendable {

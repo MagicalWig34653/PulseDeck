@@ -60,7 +60,7 @@ public enum OrbStackParsing {
             return OrbStackMachine(
                 name: name,
                 state: state(from: stateText),
-                distribution: [distro, version].compactMap { $0 }.joined(separator: " ").nonEmpty,
+                distribution: [distro, version].compactMap { $0 }.joined(separator: " ").limaFamilyNonEmpty,
                 architecture: arch.map(normalizeArchitecture)
             )
         }
