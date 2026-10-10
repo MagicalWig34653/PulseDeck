@@ -62,6 +62,10 @@
 |---|---|
 | <img src="docs/images/usb-light.png" alt="USB section: tree diagram of buses and devices with link speeds and allocated power"> | <img src="docs/images/containers-dark.png" alt="Containers section without a running Docker engine, dark appearance"> |
 
+| Traffic: bytes per destination, grouped by provider | Virtual Machines (none installed on the runner) |
+|---|---|
+| <img src="docs/images/traffic-dark.png" alt="Traffic section: live rate chart and a treemap of destinations grouped by provider, dark appearance"> | <img src="docs/images/machines-light.png" alt="Virtual Machines section listing the supported programs when none is installed, light appearance"> |
+
 | Top bar navigation | Sidebar navigation |
 |---|---|
 | <img src="docs/images/performance-dark.png" alt="Performance view, dark appearance"> | <img src="docs/images/sidebar-light.png" alt="Sidebar navigation, light appearance"> |
@@ -104,6 +108,16 @@ Implemented:
   allocation reported by macOS, not a measurement — labelled).
 - **Containers** — local Docker containers (Colima, Docker Desktop or any local Docker socket) with
   CPU, memory, network and ports; Start, Stop and Restart.
+- **Virtual Machines** — VMs of the VM software installed on this Mac: Colima, Lima, Finch, Rancher Desktop,
+  OrbStack, Docker Desktop, Tart, UTM, Parallels, VMware Fusion, VirtualBox, Anka, Multipass, Podman Machine,
+  minikube, Vagrant and loose QEMU processes. Start / Stop / Restart, live host-side CPU, memory and disk use
+  per VM with charts, and editing CPU / memory / disk where the program allows it (usually on a stopped VM;
+  disks only grow). Configuration is read from the programs' files and the process table; a vendor command-line
+  tool is run only when you click an action (and, for a few programs without readable files, to list VMs).
+- **Traffic** — where this Mac's traffic goes at layer 3: bytes per remote IP with layer 4 (TCP/UDP, port,
+  service) and process breakdown, grouped by destination, country, provider, service, process, protocol or port,
+  as treemap and table. Country and provider come from an offline database (`docs/GEOIP.md`); per-flow byte
+  counters come from the kernel's network statistics (undocumented, same source as `nettop`, L‑14).
 - **GPU** — every Metal device (name, integrated/discrete, unified memory, location) and
   system-wide utilization with a history chart. Utilization comes from an undocumented driver
   statistic (`IOAccelerator` “Device Utilization %”); the page says so, and shows *Not Available*

@@ -92,6 +92,10 @@ private struct TopBarNavigation: View {
                 ContainersView()
             case .usb:
                 USBView()
+            case .machines:
+                VirtualMachinesView()
+            case .traffic:
+                TrafficView()
             }
         }
         .toolbar {
@@ -125,6 +129,8 @@ private struct SidebarNavigation: View {
         case processes
         case containers
         case usb
+        case machines
+        case traffic
     }
 
     private var selection: Binding<Entry?> {
@@ -134,6 +140,8 @@ private struct SidebarNavigation: View {
             case .processes: .processes
             case .containers: .containers
             case .usb: .usb
+            case .machines: .machines
+            case .traffic: .traffic
             }
         } set: { entry in
             switch entry {
@@ -146,6 +154,10 @@ private struct SidebarNavigation: View {
                 section = .containers
             case .usb?:
                 section = .usb
+            case .machines?:
+                section = .machines
+            case .traffic?:
+                section = .traffic
             case nil:
                 break
             }
@@ -182,6 +194,18 @@ private struct SidebarNavigation: View {
                         Image(systemName: AppSection.usb.systemImage)
                     }
                     .tag(Entry.usb)
+                    Label {
+                        Text(AppSection.machines.title)
+                    } icon: {
+                        Image(systemName: AppSection.machines.systemImage)
+                    }
+                    .tag(Entry.machines)
+                    Label {
+                        Text(AppSection.traffic.title)
+                    } icon: {
+                        Image(systemName: AppSection.traffic.systemImage)
+                    }
+                    .tag(Entry.traffic)
                 }
             }
             .navigationSplitViewColumnWidth(min: 240, ideal: 270)
@@ -195,6 +219,10 @@ private struct SidebarNavigation: View {
                 ContainersView()
             case .usb:
                 USBView()
+            case .machines:
+                VirtualMachinesView()
+            case .traffic:
+                TrafficView()
             }
         }
     }

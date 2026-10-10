@@ -32,6 +32,8 @@ public struct TelemetryProviders: Sendable {
     public var containers: (any TelemetryProvider<ContainersSnapshot>)?
     public var usb: (any TelemetryProvider<USBSnapshot>)?
     public var thermals: (any TelemetryProvider<ThermalSnapshot>)?
+    public var virtualMachines: (any TelemetryProvider<VirtualMachinesSnapshot>)?
+    public var flows: (any TelemetryProvider<NetworkFlowsSnapshot>)?
 
     public init(
         cpu: (any TelemetryProvider<CPUSnapshot>)? = nil,
@@ -45,7 +47,9 @@ public struct TelemetryProviders: Sendable {
         tailscale: (any TelemetryProvider<TailscaleSnapshot>)? = nil,
         containers: (any TelemetryProvider<ContainersSnapshot>)? = nil,
         usb: (any TelemetryProvider<USBSnapshot>)? = nil,
-        thermals: (any TelemetryProvider<ThermalSnapshot>)? = nil
+        thermals: (any TelemetryProvider<ThermalSnapshot>)? = nil,
+        virtualMachines: (any TelemetryProvider<VirtualMachinesSnapshot>)? = nil,
+        flows: (any TelemetryProvider<NetworkFlowsSnapshot>)? = nil
     ) {
         self.cpu = cpu
         self.memory = memory
@@ -59,6 +63,8 @@ public struct TelemetryProviders: Sendable {
         self.containers = containers
         self.usb = usb
         self.thermals = thermals
+        self.virtualMachines = virtualMachines
+        self.flows = flows
     }
 
     /// No collectors at all. Every metric is reported as not implemented.

@@ -7,7 +7,7 @@ Public repository, licensed AGPL-3.0 (`LICENSE`, owner's choice).
 holds the architecture, telemetry matrix and milestone plan (§15). [`TECHNICAL_LIMITATIONS.md`](TECHNICAL_LIMITATIONS.md)
 lists what has no reliable public API (L‑1…L‑9) and the product owner's decisions on each.
 
-## Status (last updated after release v0.7.2)
+## Status (last updated after release v0.8.0)
 
 | Milestone (SPEC §39) | State |
 |---|---|
@@ -20,6 +20,7 @@ lists what has no reliable public API (L‑1…L‑9) and the product owner's de
 | Thermals (SMC temperatures on a schematic board, fans, battery health) + cheaper workflows | ✅ done (v0.7.0) |
 | Smooth per-core charts, P/E badges + legend, charts start at the left edge | ✅ done (v0.7.1) |
 | Core types fallback (`CoreTypeResolver`: device tree, else `hw.perflevel` counts, E-cores first) | ✅ done (v0.7.2) |
+| Virtual Machines section (17 providers, start/stop/restart, resource editing) + Traffic section (L3/L4 flows per destination, offline GeoIP grouping) | ✅ done (v0.8.0) |
 
 All SPEC §39 milestones are implemented. Remaining work needs a real Mac (see *Next*).
 
@@ -98,6 +99,26 @@ The product owner approves each milestone explicitly. Ask before starting one un
   takes `pages` (e.g. `thermals-dark`; `all` also does menu bar, icon, DMG). `release.yml` skips the
   package tests on `workflow_dispatch` unless `run_tests`. Don't dispatch CI or screenshots casually.
 
+### What v0.8.0 added
+- **Virtual Machines** (`AppSection.machines`, `MetricKind.virtualMachines`). Core: `Models/VirtualMachineSnapshot`,
+  `VirtualMachines/*` (per-provider pure parsers/planners — `*Parsing`/`*Support`, `SimpleYAML`, `VMUsageTracker`,
+  `VMProcessAllowList`), `History/VMHistory`, `Calculation/VMResourceDraft`. Telemetry: `VMMonitor` (actor, lists via
+  `VMProviderRegistry.all`), `VMProviderAdapter` (one thin `<Name>VMAdapter` per provider), `VMHostProcessTable`
+  (allow-listed processes + argv via KERN_PROCARGS2 + `proc_pid_rusage`), `VMCommandRunner`, `VMControl`
+  (`perform`/`apply`). Rules: listing reads files + process table; a vendor CLI is run for **actions**, and for
+  listing only where no files exist (Multipass, Parallels, Anka, OrbStack; throttled by `minimumListInterval`).
+  Usage shown is HOST-side (the VM's processes). UI: `Features/VirtualMachines/*`, `VMActionController.shared`.
+- **Traffic** (`AppSection.traffic`, `MetricKind.flows`). `FlowMonitor` reads the kernel network-statistics control
+  socket (`NStat*` codec/flow table in core; undocumented, **L‑14**) with a libproc socket-table fallback (no bytes).
+  `FlowLedger` (core) accumulates bytes per destination in `AppState.flowLedger` (recording only while Traffic is
+  visible, or always with Settings → Traffic → "Record traffic while the window is closed"). Offline classification:
+  `DestinationClassifier`, `GeoIPDatabase`, `FlowGrouper`; data `PulseDeck/Resources/GeoIP.bin` built by
+  `scripts/build-geoip.py` (`docs/GEOIP.md`). Reverse DNS: `HostNameResolver` (toggle in Settings). UI: `Features/Traffic/*`.
+- Needs a real Mac (all of it was written blind; CI only type-checks): every provider against the real software
+  (see the adapter doc comments for the assumptions), `VMHostProcessTable`, NStat offsets (compare with
+  `nettop -m tcp`), HTTP/3 (QUIC provider) not double counted, reconnect after sleep, SwiftUI layout of both sections.
+  The CI VM has no VM software, so the VM section shows its empty state there; Traffic shows the runner's own flows.
+
 ### Next
 - Actions were blocked for a day by the account's spending limit ("recent account payments have
   failed…"); jobs that fail within seconds without a runner mean that again — only the owner can fix it.
@@ -170,7 +191,7 @@ screenshots run is in progress, or its final `git push` is rejected.
   (or "—" for transient reasons), never `0`. Derived or estimated values carry `ValueProvenance`.
 - Public APIs first. Undocumented sources only with the owner's approval, labelled in the UI, with fallback.
   Approved and implemented: memory-pressure sysctl, IOAccelerator GPU stats (M6), `SystemPowerIn` (M7).
-- No shell-command polling, no private frameworks, no privileged helper, no App Sandbox (see plan §11).
+- No shell-command polling (exception, owner-requested in v0.8.0: the Virtual Machines section runs vendor CLIs for user-clicked actions and, throttled, to list VMs of programs without readable files), no private frameworks, no privileged helper, no App Sandbox (see plan §11).
 - Collection happens off the MainActor in actors. History stays bounded (`SystemHistory.capacity = 124`).
 - Swift 6 language mode, zero warnings (CI treats warnings as errors), no force unwraps in telemetry paths,
   comments for non-obvious Darwin/IOKit behaviour, no unexplained magic numbers.
@@ -191,7 +212,7 @@ screenshots run is in progress, or its final `git push` is rejected.
 - `mach_task_self_` compiles fine in Swift 6 on Xcode 26.6.
 - The runner is a VM ("Apple M2 Pro (Virtual)", VirtIO disk, many mounted simulator disk images). That's expected.
 - Screenshot pages are selected with the `-initialCategory <cpu|memory|disks|network|gpu|energy|thermals>` launch preference
-  (`PreferenceKey.initialCategory`) or `-initialSection <processes|containers|usb>`; `-cpuChartMode logicalProcessors`
+  (`PreferenceKey.initialCategory`) or `-initialSection <processes|containers|usb|machines|traffic>`; `-cpuChartMode logicalProcessors`
   selects the per-core view, `-initialScrollAnchor bottom` scrolls pages down, `-memoryProcessPie YES` shows the pie.
 - On macOS 26 `PROC_PIDTBSDINFO` fails with `EPERM` for other users' processes (not only task info).
   Use `sysctl(KERN_PROC_PID)` → `kinfo_proc` for their identity; `p_starttime` is `p_un.__p_starttime` in Swift.

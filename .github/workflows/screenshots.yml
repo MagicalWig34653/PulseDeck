@@ -89,6 +89,9 @@ jobs:
           capture usb-light false -navigationPresentation topBar -initialSection usb
           capture containers-dark true -navigationPresentation topBar -initialSection containers
           capture thermals-dark true -navigationPresentation topBar -initialCategory thermals
+          capture machines-light false -navigationPresentation topBar -initialSection machines
+          capture traffic-dark true -navigationPresentation topBar -initialSection traffic
+          capture traffic-light false -navigationPresentation topBar -initialSection traffic
           set_dark_mode false
 
       - name: Capture menu bar panel

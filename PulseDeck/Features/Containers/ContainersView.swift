@@ -252,7 +252,7 @@ struct ContainersView: View {
 extension ContainerSnapshot {
     // Missing values sort as −1, below every real value.
     var cpuSortValue: Double { cpu.value ?? -1 }
-    var memorySortValue: Double { memoryBytes.value.map(Double.init) ?? -1 }
+    var memorySortValue: Double { memoryBytes.value.map { Double($0) } ?? -1 }
     var receivedSortValue: Double { networkReceivedBytesPerSecond.value ?? -1 }
     var sentSortValue: Double { networkSentBytesPerSecond.value ?? -1 }
 }

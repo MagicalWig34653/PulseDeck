@@ -124,6 +124,8 @@ public actor MonitoringEngine {
         await providers.containers?.invalidateBaselines()
         await providers.usb?.invalidateBaselines()
         await providers.thermals?.invalidateBaselines()
+        await providers.virtualMachines?.invalidateBaselines()
+        await providers.flows?.invalidateBaselines()
     }
 
     /// Capability of every domain. Domains without a collector are `.unsupported(.notImplemented)`.
@@ -145,6 +147,8 @@ public actor MonitoringEngine {
             .containers: await probe(providers.containers),
             .usb: await probe(providers.usb),
             .thermals: await probe(providers.thermals),
+            .virtualMachines: await probe(providers.virtualMachines),
+            .flows: await probe(providers.flows),
         ]
     }
 
@@ -172,6 +176,8 @@ public actor MonitoringEngine {
         async let containers = Self.collect(providers.containers, kind: .containers, policy: policy, at: instant)
         async let usb = Self.collect(providers.usb, kind: .usb, policy: policy, at: instant)
         async let thermals = Self.collect(providers.thermals, kind: .thermals, policy: policy, at: instant)
+        async let virtualMachines = Self.collect(providers.virtualMachines, kind: .virtualMachines, policy: policy, at: instant)
+        async let flows = Self.collect(providers.flows, kind: .flows, policy: policy, at: instant)
 
         return SystemSnapshot(
             sequence: sequence,
@@ -188,7 +194,9 @@ public actor MonitoringEngine {
             tailscale: await tailscale,
             containers: await containers,
             usb: await usb,
-            thermals: await thermals
+            thermals: await thermals,
+            virtualMachines: await virtualMachines,
+            flows: await flows
         )
     }
 

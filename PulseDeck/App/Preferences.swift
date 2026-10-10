@@ -16,9 +16,13 @@ enum PreferenceKey {
     static let memoryProcessPie = "memoryProcessPie"
     /// Disks and network interfaces shown/hidden in the Performance list (JSON).
     static let sidebarVisibility = "sidebarVisibility"
+    /// Keep recording layer 3/4 flows (Traffic) while the Traffic section is closed.
+    static let recordTrafficInBackground = "recordTrafficInBackground"
+    /// Look up host names (reverse DNS) of traffic destinations.
+    static let resolveTrafficHostNames = "resolveTrafficHostNames"
     /// Performance page to open at launch (not shown in Settings; used for screenshots).
     static let initialCategory = "initialCategory"
-    /// Section to open at launch, `performance` or `processes` (used for screenshots).
+    /// Section to open at launch, `performance`, `processes`, `containers`, `usb`, `machines` or `traffic` (used for screenshots).
     static let initialSection = "initialSection"
     /// `bottom` opens Performance pages scrolled to their end (used for screenshots of the lower
     /// sections).
