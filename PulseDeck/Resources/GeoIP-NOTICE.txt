@@ -1,0 +1,14 @@
+IP geolocation data
+
+PulseDeck looks up countries and network operators for remote addresses offline, using a database
+bundled with the app (GeoIP.bin). No address leaves your Mac for this. The data was built on 2026-10-09 from:
+
+- IPtoASN (https://iptoasn.com), republished by the ip-location-db project
+  (https://github.com/sapics/ip-location-db), made available under the Public Domain Dedication and
+  License (PDDL) 1.0: https://opendatacommons.org/licenses/pddl/1-0/
+- The CloudFront address ranges published by Amazon Web Services
+  (https://ip-ranges.amazonaws.com/ip-ranges.json).
+
+The country shown is the registration country of the network operator, not the physical location of a
+server. Providers are identified by autonomous system number for a curated list of well-known networks;
+other addresses show only a country.
