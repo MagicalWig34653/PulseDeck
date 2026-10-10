@@ -140,6 +140,8 @@ private struct SidebarNavigation: View {
             case .processes: .processes
             case .containers: .containers
             case .usb: .usb
+            case .machines: .machines
+            case .traffic: .traffic
             }
         } set: { entry in
             switch entry {
