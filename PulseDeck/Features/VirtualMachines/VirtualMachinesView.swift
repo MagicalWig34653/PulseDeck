@@ -152,7 +152,7 @@ struct VirtualMachinesView: View {
         // Eleven columns are more than one builder takes, so they are grouped.
         Table(rows, selection: $selection, sortOrder: $sortOrder) {
             Group {
-                TableColumn("Name", value: \.name) { machine in
+                TableColumn("Name", value: \VirtualMachineSnapshot.name) { machine in
                     HStack(spacing: 6) {
                         VMStatusSymbol(state: machine.state)
                         Text(verbatim: machine.name)
@@ -166,50 +166,50 @@ struct VirtualMachinesView: View {
                     }
                 }
                 .width(min: 140, ideal: 190)
-                TableColumn("Program", value: \.providerName) { machine in
+                TableColumn("Program", value: \VirtualMachineSnapshot.providerName) { machine in
                     Text(verbatim: machine.providerName)
                         .lineLimit(1)
                 }
                 .width(min: 80, ideal: 110)
-                TableColumn("System", value: \.guestDescription) { machine in
+                TableColumn("System", value: \VirtualMachineSnapshot.guestDescription) { machine in
                     MetricStateText(state: MetricState<String>.text(machine.guestDescription), isCompact: true)
                         .lineLimit(1)
                 }
                 .width(min: 80, ideal: 110)
-                TableColumn("State", value: \.stateLabel) { machine in
+                TableColumn("State", value: \VirtualMachineSnapshot.stateLabel) { machine in
                     Text(verbatim: machine.state.label)
                         .lineLimit(1)
                         .foregroundStyle(machine.state.isRunning ? .primary : .secondary)
                 }
                 .width(min: 70, ideal: 84)
-                TableColumn("CPUs", value: \.cpusSortValue) { machine in
+                TableColumn("CPUs", value: \VirtualMachineSnapshot.cpusSortValue) { machine in
                     MetricStateText(state: MetricState<String>.text(machine.resources.cpus.map { String($0) }), isCompact: true)
                 }
                 .width(min: 40, ideal: 50)
-                TableColumn("Memory", value: \.configuredMemorySortValue) { machine in
+                TableColumn("Memory", value: \VirtualMachineSnapshot.configuredMemorySortValue) { machine in
                     MetricStateText(state: MetricState<String>.text(machine.resources.memoryBytes.map(Format.memory)), isCompact: true)
                 }
                 .width(min: 60, ideal: 74)
             }
             Group {
-                TableColumn("Disk", value: \.configuredDiskSortValue) { machine in
+                TableColumn("Disk", value: \VirtualMachineSnapshot.configuredDiskSortValue) { machine in
                     MetricStateText(state: MetricState<String>.text(machine.resources.diskBytes.map(Format.memory)), isCompact: true)
                 }
                 .width(min: 60, ideal: 74)
-                TableColumn("Host CPU", value: \.hostCPUSortValue) { machine in
+                TableColumn("Host CPU", value: \VirtualMachineSnapshot.hostCPUSortValue) { machine in
                     MetricStateText(state: machine.usage.cpu.map(Format.processCPU), isCompact: true)
                 }
                 .width(min: 60, ideal: 74)
-                TableColumn("Resident", value: \.residentMemorySortValue) { machine in
+                TableColumn("Resident", value: \VirtualMachineSnapshot.residentMemorySortValue) { machine in
                     MetricStateText(state: machine.usage.memoryBytes.map(Format.memory), isCompact: true)
                 }
                 .width(min: 66, ideal: 80)
-                TableColumn("Disk R/W", value: \.diskSortValue) { machine in
+                TableColumn("Disk R/W", value: \VirtualMachineSnapshot.diskSortValue) { machine in
                     MetricStateText(state: Self.diskText(machine.usage), isCompact: true)
                         .lineLimit(1)
                 }
                 .width(min: 110, ideal: 150)
-                TableColumn("IP Address", value: \.ipSortValue) { machine in
+                TableColumn("IP Address", value: \VirtualMachineSnapshot.ipSortValue) { machine in
                     MetricStateText(state: MetricState<String>.text(machine.ipAddress), isCompact: true)
                         .lineLimit(1)
                 }
