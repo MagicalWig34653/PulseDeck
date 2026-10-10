@@ -62,6 +62,10 @@
 |---|---|
 | <img src="docs/images/usb-light.png" alt="USB section: tree diagram of buses and devices with link speeds and allocated power"> | <img src="docs/images/containers-dark.png" alt="Containers section without a running Docker engine, dark appearance"> |
 
+| Traffic: bytes per destination, grouped by provider | Virtual Machines (none installed on the runner) |
+|---|---|
+| <img src="docs/images/traffic-dark.png" alt="Traffic section: live rate chart and a treemap of destinations grouped by provider, dark appearance"> | <img src="docs/images/machines-light.png" alt="Virtual Machines section listing the supported programs when none is installed, light appearance"> |
+
 | Top bar navigation | Sidebar navigation |
 |---|---|
 | <img src="docs/images/performance-dark.png" alt="Performance view, dark appearance"> | <img src="docs/images/sidebar-light.png" alt="Sidebar navigation, light appearance"> |
